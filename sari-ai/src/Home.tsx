@@ -27,17 +27,20 @@ export default function Home({ store, open }: { store: Store; open: (entry: Entr
   const watch = week.forecasts.find(f => f.product.stock <= f.product.threshold || (f.days !== null && f.days < 3));
   const names = new Map(store.products.map(p => [p.id, p.name]));
   const date = new Date(store.today + 'T12:00:00Z').toLocaleDateString(language === 'fil' ? 'fil-PH' : 'en-PH', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const recordSale = () => open({ kind: 'sale' });
   return <div className="overview">
-    <header className="page-heading"><div><h1>{t('Store overview', 'Buod ng tindahan')}</h1><p>{date}</p></div>
-      <button className="button primary" onClick={() => open({ kind: 'sale' })}><Icon name="plus" />{t('Record sale', 'Itala ang benta')}</button></header>
-    <nav className="home-record-links" aria-label={t('Store records', 'Mga tala ng tindahan')}>
-      <a className="button secondary" href="#expenses"><Icon name="expense" size={17} />{t('Expenses', 'Gastos')}</a>
-      <a className="button secondary" href="#ledger"><Icon name="ledger" size={17} />{t('Ledger', 'Utang')}</a>
-    </nav>
+    <header className="page-heading"><div><h1><span className="home-title-desktop">{t('Store overview', 'Buod ng tindahan')}</span>
+      <span className="mobile-only">{t('Your Store', 'Ang Tindahan Mo')}</span></h1><p>{date}</p></div>
+      <button className="button primary desktop-only" onClick={recordSale}><Icon name="plus" />{t('Record sale', 'Itala ang benta')}</button></header>
     <section className="summary-spread"><div className="day-total"><h2>{t('Today’s sales', 'Benta ngayong araw')}</h2><strong>{peso(day.sales)}</strong>
       <p>{delta === 0 ? t('Same as yesterday', 'Katulad ng kahapon') : peso(Math.abs(delta)) +
         (delta > 0 ? t(' above yesterday', ' na mas mataas kaysa kahapon') : t(' below yesterday', ' na mas mababa kaysa kahapon'))}</p></div>
-      <DailySales trend={week.trend}/><div className="spending">{t('Expenses today', 'Gastos ngayong araw')} <strong>{peso(day.expenses)}</strong></div></section>
+      <div className="spending">{t('Expenses today', 'Gastos ngayong araw')} <strong>{peso(day.expenses)}</strong></div>
+      <button className="button primary mobile-only home-sale" onClick={recordSale}>
+        <Icon name="plus" size={18} />{t('Record sale', 'Itala ang benta')}
+      </button>
+      <DailySales trend={week.trend} />
+    </section>
     <div className="book-spread"><section className="recent"><header><h2>{t('Recent sales', 'Mga huling benta')}</h2><a href="#sales">{t('View all', 'Tingnan lahat')}</a></header>
       <table><thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Product', 'Item')}</th><th>{t('Qty', 'Bilang')}</th><th>{t('Amount', 'Halaga')}</th></tr></thead>
         <tbody>{store.sales.slice(0, 4).map(s => {
@@ -52,6 +55,10 @@ export default function Home({ store, open }: { store: Store; open: (entry: Entr
           <a href={'#stock/history/' + encodeURIComponent(watch.product.id)}>{t('View stock history', 'Tingnan ang stock history')}</a></div>
       </> : <p>{t('No products are running low.', 'Walang item na malapit maubos.')}</p>}
       <Notebook open={open} store={store} /></section></div>
+    <nav className="home-record-links" aria-label={t('Store records', 'Mga tala ng tindahan')}>
+      <a className="button secondary" href="#expenses"><Icon name="expense" size={17} />{t('Expenses', 'Gastos')}</a>
+      <a className="button secondary" href="#ledger"><Icon name="ledger" size={17} />{t('Ledger', 'Utang')}</a>
+    </nav>
     <div className="stock-tools"><StoreInsights store={store} /><StoreHealth store={store} open={open} /></div>
   </div>;
 }

@@ -249,11 +249,12 @@ body { font-variant-numeric:tabular-nums; }
 .overview h2,.note-entry label { font-size:1.15rem; font-weight:650; letter-spacing:-.02em; }
 .overview a,.evidence-link { color:#145acf; font-size:.9rem; text-underline-offset:3px; }
 .overview a:hover,.evidence-link:hover { text-decoration:underline; }
-.summary-spread { display:grid; grid-template-columns:minmax(180px,.75fr) minmax(0,1.5fr); column-gap:36px; }
+.summary-spread { display:grid; grid-template-columns:minmax(180px,.75fr) minmax(0,1.5fr); grid-template-areas:"sales chart" "expenses chart"; column-gap:36px; }
+.day-total { grid-area:sales; }
 .day-total > strong { display:block; margin:8px 0; font-size:clamp(2rem,4vw,3.9rem); line-height:1.1; letter-spacing:-.05em; }
 .day-total p,.suki-byline p { color:var(--muted); line-height:1.5; }
-.spending { align-self:end; display:flex; align-items:center; justify-content:space-between; gap:10px; border-top:1px solid var(--line); padding:14px 0; }
-.daily-sales { grid-column:2; grid-row:1/span 2; border-left:1px solid var(--line); padding-left:30px; margin:0; min-width:0; }
+.spending { grid-area:expenses; align-self:end; display:flex; align-items:center; justify-content:space-between; gap:10px; border-top:1px solid var(--line); padding:14px 0; }
+.daily-sales { grid-area:chart; border-left:1px solid var(--line); padding-left:30px; margin:0; min-width:0; }
 .daily-sales figcaption { font-size:1.12rem; font-weight:650; margin-bottom:14px; }
 .line-plot { display:flex; align-items:stretch; gap:10px; }
 .tick-labels { display:flex; flex-direction:column; justify-content:space-between; font-size:.65rem; color:var(--muted); width:58px; text-align:right; }
@@ -279,21 +280,35 @@ body { font-variant-numeric:tabular-nums; }
 .action-group { flex-wrap:wrap; }
 @media(max-width:840px) {
  .home-topbar { display:flex; }
- .topbar .quick-sale { display:none; }
+ .topbar .quick-sale,.overview .desktop-only,.home-title-desktop { display:none; }
  .mobile-only { display:inline-flex; }
- .bottom-nav .nav-link.active { background:transparent; color:#145cdf; }
+ .bottom-nav { background:#1248ac; border-top-color:#1248ac; }
+ .bottom-nav .nav-link { color:#e1ebff; }
+ .bottom-nav .nav-link.active { background:#ffffff24; color:#fff; }
+ .bottom-nav .nav-link:focus-visible { outline-color:#ffd66e; outline-offset:-3px; }
  .overview { gap:16px; }
- .summary-spread,.book-spread { display:flex; flex-direction:column; gap:15px; }
- .daily-sales { border:0; padding:0; }
- .daily-sales figcaption,.tick-labels { display:none; }
+ .summary-spread { grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); grid-template-areas:"sales expenses" "action action" "chart chart"; gap:10px; }
+ .book-spread { display:flex; flex-direction:column; gap:16px; }
+ .day-total,.spending { align-self:stretch; min-width:0; padding:12px; border:1px solid #dce6f2; border-radius:10px; background:#f2f6fc; }
+ .overview .day-total h2,.overview .spending { font-size:.86rem; font-weight:650; }
+ .overview .day-total > strong,.overview .spending > strong { display:block; font-size:clamp(1rem,5vw,1.6rem); line-height:1.2; letter-spacing:-.04em; overflow-wrap:anywhere; }
+ .day-total > strong { margin:5px 0 4px; }
+ .day-total p { font-size:.73rem; }
+ .spending { flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:5px; }
+ .home-sale { grid-area:action; width:100%; }
+ .daily-sales { border:1px solid var(--line); border-radius:10px; padding:12px; }
+ .daily-sales figcaption { margin-bottom:8px; font-size:.88rem; }
+ .tick-labels { display:none; }
  .day-labels { margin-left:0; }
  .line-plot svg { height:77px; }
  .stock-watch { border:0; padding:0; }
- .book-spread { padding-top:14px; }
+ .book-spread { border-top:0; padding-top:0; }
  .stock-watch h2 { font-size:1rem; }
- .overview .day-total > strong { font-size:2.55rem; }
+ .stock-watch > h3 { margin:8px 0 4px; }
+ .stock-watch .suki-byline { gap:8px; margin:5px 0 7px; font-size:.83rem; }
+ .stock-watch .suki-byline img { width:36px; height:36px; }
+ .stock-watch .capture-form { margin-top:14px; }
  .overview .page-heading h1 { font-size:1.45rem; }
- .spending { align-self:stretch; padding:10px 0 0; }
  .status { display:inline-flex; }
  .top-actions { margin-left:auto; }
  .stock-grid { grid-template-columns:minmax(0,1fr); }
@@ -369,12 +384,16 @@ body { font-variant-numeric:tabular-nums; }
 .language-control select { min-height: 38px; padding-inline: 9px 22px; }
 @media (max-width: 760px) {
   .stock-tools { grid-template-columns: 1fr; }
-  .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .catalog-grid { grid-template-columns: 1fr; gap: 0; border-top: 1px solid var(--line); }
   .catalog-controls { grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
   .catalog-controls select { max-width: 145px; }
-  .catalog-body { padding: 9px; }
-  .catalog-product { flex-direction: column; gap: 5px; }
-  .catalog-actions .button { min-height: 44px; padding-inline: 6px; font-size: .77rem; }
+  .catalog-card { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 0;
+    background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+  .catalog-card > .product-photo { border-radius: 8px; }
+  .catalog-body { padding: 0; min-width: 0; }
+  .catalog-product h2 { font-size: .9rem; }
+  .catalog-cover { min-height: 0; margin: 4px 0 5px; }
+  .catalog-actions .button { min-height: 44px; padding-inline: 8px; font-size: .77rem; flex: 0 0 auto; }
   .catalog-more summary { min-height: 44px; width: 30px; }
   .save-receipt { right: 16px; bottom: calc(79px + env(safe-area-inset-bottom)); }
   .language-control select { max-width: 100px; }
