@@ -3,6 +3,7 @@ import base64
 import binascii
 import mimetypes
 from datetime import date
+from os import getenv
 from pathlib import Path
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, make_server
@@ -163,7 +164,8 @@ def application(environ, start):
         if method in ("GET", "HEAD") and path == API + "health":
             return json_output(start, "200 OK", {"status": "ok"}, head)
         if method in ("GET", "HEAD") and path == API + "store":
-            return json_output(start, "200 OK", {**store.snapshot(), "ai_configured": all(llm.credentials())}, head)
+            ai_configured = any(getenv(variable, "").strip() for _, variable, _, _ in llm.PROVIDERS)
+            return json_output(start, "200 OK", {**store.snapshot(), "ai_configured": ai_configured}, head)
         if method == "POST" and (path in WRITES or path == API + "ask"):
             if environ.get("CONTENT_TYPE", "").split(";")[0].strip().lower() != "application/json":
                 return json_output(start, "415 Unsupported Media Type", {"detail": "Send the record as JSON."})
