@@ -279,6 +279,8 @@ body { font-variant-numeric:tabular-nums; }
 .evidence-link { display:inline-block; margin-top:6px; }
 .action-group { flex-wrap:wrap; }
 @media(max-width:840px) {
+ body { min-width:0; }
+ .content { grid-template-columns:minmax(0,1fr); }
  .home-topbar { display:flex; }
  .topbar .quick-sale,.overview .desktop-only,.home-title-desktop { display:none; }
  .mobile-only { display:inline-flex; }
