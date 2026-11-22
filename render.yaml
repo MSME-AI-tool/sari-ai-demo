@@ -8,11 +8,9 @@ services:
     healthCheckPath: /api/v1/health
     plan: free
     envVars:
-      - key: FREELLMAPI_BASE_URL
-        value: https://api.sea-lion.ai/v1
-      - key: FREELLMAPI_MODEL
-        value: aisingapore/Qwen-SEA-LION-v4.5-27B-IT
-      - key: FREELLMAPI_API_KEY
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
         sync: false
       - key: DATABASE_URL
         fromDatabase:
