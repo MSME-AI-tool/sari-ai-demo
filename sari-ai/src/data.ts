@@ -1,8 +1,9 @@
 export type Product = {
   id: string; name: string; category: string; unit: string; price: number;
   cost: number; stock: number; threshold: number;
+  photo?: string | null;
 };
-export type Sale = { id: string; day: string; method: 'cash' | 'credit'; customer: string; total: number };
+export type Sale = { id: string; day: string; method: 'cash' | 'credit'; customer: string; total: number; revision?: number };
 export type SaleItem = { sale_id: string; product_id: string; quantity: number; price: number; cost: number };
 export type Movement = { id: string; day: string; product_id: string; change: number; reason: string; note: string; stock_after: number };
 export type Expense = { id: string; day: string; category: string; description: string; amount: number };
@@ -11,8 +12,8 @@ export type Store = {
   today: string; products: Product[]; sales: Sale[]; items: SaleItem[]; movements: Movement[];
   expenses: Expense[]; payments: Payment[];
 };
-export type EntryKind = 'sale' | 'product' | 'stock' | 'expense' | 'payment';
-export type Line = { product_id: string; quantity: string; note: string };
+export type EntryKind = 'sale' | 'product' | 'stock' | 'expense' | 'payment' | 'sale-correction' | 'product-details';
+export type Line = { product_id: string; quantity: string; note: string; supplier_cost?: string };
 export type Entry = {
   kind: EntryKind;
   original?: string;
@@ -25,15 +26,24 @@ export type Entry = {
   description?: string;
   category?: string;
   amount?: string;
+  product?: Product;
+  sale?: Sale;
+};
+export type Receipt = {
+  saved: boolean; id?: string; total?: number; name?: string; balance?: number; customer?: string;
+  method?: Sale['method']; stock?: { product_id: string; name: string; unit: string; change: number; on_hand: number }[];
 };
 export type Agent = 'recording' | 'insights' | 'forecast' | 'health';
 export type AskReply = {
   agent: Agent;
   text: string;
-  source: 'external' | 'records';
+  source: 'external' | 'records' | 'guide';
   reason?: 'unconfigured' | 'unavailable' | 'invalid' | 'busy';
   draft?: Entry;
+  clarification?: boolean;
+  destination?: 'home' | 'sales' | 'stock' | 'stock/history' | 'stock/planner' | 'expenses' | 'ledger';
   facts?: { label: string; value: string }[];
+  matches?: string[];
 };
 
 const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
@@ -122,7 +132,13 @@ export function forecast(store: Store) {
   }).sort((a, b) => (a.days ?? Infinity) - (b.days ?? Infinity));
 }
 
-export function runout(days: number | null) {
+export function runout(days: number | null, language = 'en') {
+  if (language === 'fil') {
+    if (days === null) return 'Kulang ang tala ng benta';
+    if (days === 0) return 'Ubos na';
+    if (days < 1) return 'Wala pang isang araw';
+    return `Mga ${Math.round(days)} araw`;
+  }
   if (days === null) return 'More sales history needed';
   if (days === 0) return 'Out of stock';
   if (days < 1) return 'Less than 1 day of stock';

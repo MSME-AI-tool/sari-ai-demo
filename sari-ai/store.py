@@ -1,4 +1,5 @@
 import os
+import json
 import sqlite3
 from collections import Counter
 from contextlib import contextmanager
@@ -45,6 +46,11 @@ TABLES = (
     id TEXT PRIMARY KEY, day TEXT NOT NULL, customer TEXT NOT NULL,
     amount INTEGER NOT NULL CHECK (amount > 0), created_at TEXT NOT NULL)""",
     "CREATE TABLE IF NOT EXISTS demo_seed (id INTEGER PRIMARY KEY)",
+    """CREATE TABLE IF NOT EXISTS product_photos (
+    product_id TEXT PRIMARY KEY REFERENCES products(id), photo TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS sale_corrections (
+    id TEXT PRIMARY KEY, sale_id TEXT NOT NULL REFERENCES sales(id), revision INTEGER NOT NULL,
+    previous_entry TEXT NOT NULL, note TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(sale_id, revision))""",
 )
 
 
@@ -156,8 +162,9 @@ def snapshot():
     with database() as db:
         return {
             "today": str(today()),
-            "products": db.all("SELECT * FROM products ORDER BY name, id"),
-            "sales": db.all("SELECT * FROM sales ORDER BY day DESC, created_at DESC, id"),
+            "products": db.all("SELECT products.*, photo FROM products LEFT JOIN product_photos ON products.id = product_id ORDER BY name, id"),
+            "sales": db.all("""SELECT sales.*, (SELECT COUNT(*) FROM sale_corrections WHERE sale_id = sales.id) AS revision
+                          FROM sales ORDER BY day DESC, created_at DESC, id"""),
             "items": db.all("SELECT * FROM sale_items"),
             "movements": db.all("SELECT * FROM movements ORDER BY day DESC, created_at DESC, id"),
             "expenses": db.all("SELECT * FROM expenses ORDER BY day DESC, created_at DESC, id"),
@@ -188,9 +195,11 @@ def change_stock(db, day, product, change, reason, note="", sale_id=None):
         db.run("UPDATE products SET stock = ? WHERE id = ?", remaining, product["id"])
     if change or reason == "count":
         move(db, day, product["id"], change, reason, note, remaining, sale_id)
+    return {"product_id": product["id"], "name": product["name"], "unit": product["unit"],
+            "change": change, "on_hand": remaining}
 
 
-def add_product(day, name, category, unit, price, cost, stock, threshold, note):
+def add_product(day, name, category, unit, price, cost, stock, threshold, note, photo=""):
     product_id = new_id()
     with database(write=True) as db:
         inserted = db.run("INSERT INTO products VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
@@ -198,12 +207,26 @@ def add_product(day, name, category, unit, price, cost, stock, threshold, note):
         if inserted.rowcount != 1:
             raise StoreError("A product with this name already exists.")
         move(db, day, product_id, stock, "opening", note or "Manual opening count", stock)
+        if photo:
+            db.run("INSERT INTO product_photos VALUES (?, ?)", product_id, photo)
+    return {"id": product_id, "name": name}
+
+
+def update_product(product_id, cost, photo):
+    with database(write=True) as db:
+        product = product_for(db, product_id)
+        db.run("UPDATE products SET cost = ? WHERE id = ?", cost, product_id)
+        if photo:
+            db.run("""INSERT INTO product_photos VALUES (?, ?)
+                   ON CONFLICT (product_id) DO UPDATE SET photo = excluded.photo""", product_id, photo)
+    return {"id": product_id, "name": product["name"]}
 
 
 def add_movements(day, reason, entries):
     if len({entry["product_id"] for entry in entries}) != len(entries):
         raise StoreError("Use one line per product in each stock update.")
     with database(write=True) as db:
+        stock = []
         for entry in sorted(entries, key=lambda item: item["product_id"]):
             product = product_for(db, entry["product_id"])
             change = entry["quantity"]
@@ -211,7 +234,8 @@ def add_movements(day, reason, entries):
                 change -= product["stock"]
             elif reason == "waste":
                 change = -change
-            change_stock(db, day, product, change, reason, entry["note"])
+            stock.append(change_stock(db, day, product, change, reason, entry["note"]))
+    return {"stock": stock}
 
 
 def add_sale(day, method, customer, entries):
@@ -221,29 +245,84 @@ def add_sale(day, method, customer, entries):
         quantities[entry["product_id"]] += entry["quantity"]
     with database(write=True) as db:
         products = [product_for(db, product_id) for product_id in sorted(quantities)]
+        stock = []
         total = sum(product["price"] * quantities[product["id"]] for product in products)
         if total < 1 or total > 2_000_000_000:
             raise StoreError("The sale total must be between ₱0.01 and ₱20,000,000.")
         db.run("INSERT INTO sales VALUES (?, ?, ?, ?, ?, ?)", sale_id, day, method, customer, total, now())
         for product in products:
             quantity = quantities[product["id"]]
-            change_stock(db, day, product, -quantity, "sale", sale_id=sale_id)
+            stock.append(change_stock(db, day, product, -quantity, "sale", sale_id=sale_id))
             db.run("INSERT INTO sale_items VALUES (?, ?, ?, ?, ?)", sale_id, product["id"],
                    quantity, product["price"], product["cost"])
+    return {"id": sale_id, "method": method, "customer": customer, "total": total, "stock": stock}
+
+
+def correct_sale(sale_id, revision, entries, note):
+    quantities = Counter()
+    for entry in entries:
+        quantities[entry["product_id"]] += entry["quantity"]
+    with database(write=True) as db:
+        lock = " FOR UPDATE" if db.postgres else ""
+        sale = db.one("SELECT * FROM sales WHERE id = ?" + lock, sale_id)
+        if not sale:
+            raise StoreError("Choose an existing sale.")
+        current_revision = db.one("SELECT COUNT(*) AS revision FROM sale_corrections WHERE sale_id = ?", sale_id)["revision"]
+        if revision != current_revision:
+            raise StoreError("This sale has changed. Open its latest details before correcting it.")
+        original = {item["product_id"]: item for item in db.all("SELECT * FROM sale_items WHERE sale_id = ?", sale_id)}
+        if quantities == Counter({key: item["quantity"] for key, item in original.items()}):
+            raise StoreError("Change a quantity or product before saving a correction.")
+        if sale["method"] == "credit" and db.postgres:
+            db.run("SELECT pg_advisory_xact_lock(913428)")
+        products = {key: product_for(db, key) for key in sorted(set(original) | set(quantities))}
+        prices = {key: original.get(key, products[key])["price"] for key in quantities}
+        total = sum(prices[key] * quantity for key, quantity in quantities.items())
+        if not 1 <= total <= 2_000_000_000:
+            raise StoreError("The corrected sale total is invalid.")
+        if sale["method"] == "credit":
+            balance = outstanding_credit(db, sale["customer"])
+            if balance + total - sale["total"] < 0:
+                raise StoreError("The corrected amount would be less than repayments already recorded.")
+        stock = []
+        for key, product in products.items():
+            change = original.get(key, {}).get("quantity", 0) - quantities[key]
+            if not change:
+                continue
+            if db.one("""SELECT id FROM movements WHERE product_id = ? AND reason = 'count'
+                       AND (day > ? OR created_at > ?) LIMIT 1""", key, sale["day"], sale["created_at"]):
+                raise StoreError("A later physical count exists. Review that stock history before correcting the sale.")
+            stock.append(change_stock(db, str(today()), product, change, "correction", note, sale_id))
+        db.run("DELETE FROM sale_items WHERE sale_id = ?", sale_id)
+        for key, quantity in quantities.items():
+            db.run("INSERT INTO sale_items VALUES (?, ?, ?, ?, ?)", sale_id, key, quantity,
+                   prices[key], original.get(key, products[key])["cost"])
+        db.run("UPDATE sales SET total = ? WHERE id = ?", total, sale_id)
+        db.run("INSERT INTO sale_corrections VALUES (?, ?, ?, ?, ?, ?)", new_id(), sale_id, revision + 1,
+               json.dumps({"total": sale["total"], "items": list(original.values())}), note, now())
+    return {"id": sale_id, "method": sale["method"], "customer": sale["customer"], "total": total, "stock": stock}
 
 
 def add_expense(day, category, description, amount):
+    expense_id = new_id()
     with database(write=True) as db:
-        db.run("INSERT INTO expenses VALUES (?, ?, ?, ?, ?, ?)", new_id(), day, category, description, amount, now())
+        db.run("INSERT INTO expenses VALUES (?, ?, ?, ?, ?, ?)", expense_id, day, category, description, amount, now())
+    return {"id": expense_id, "total": amount}
+
+
+def outstanding_credit(db, customer):
+    sales = db.one("SELECT SUM(total) AS total FROM sales WHERE method = 'credit' AND customer = ?", customer)
+    paid = db.one("SELECT SUM(amount) AS total FROM payments WHERE customer = ?", customer)
+    return (sales["total"] or 0) - (paid["total"] or 0)
 
 
 def add_payment(day, customer, amount):
     with database(write=True) as db:
         if db.postgres:
             db.run("SELECT pg_advisory_xact_lock(913428)")
-        sales = db.one("SELECT SUM(total) AS total FROM sales WHERE method = 'credit' AND customer = ?", customer)
-        paid = db.one("SELECT SUM(amount) AS total FROM payments WHERE customer = ?", customer)
-        balance = (sales["total"] or 0) - (paid["total"] or 0)
+        balance = outstanding_credit(db, customer)
         if amount > balance:
             raise StoreError("Payment exceeds the customer's outstanding balance.")
-        db.run("INSERT INTO payments VALUES (?, ?, ?, ?, ?)", new_id(), day, customer, amount, now())
+        payment_id = new_id()
+        db.run("INSERT INTO payments VALUES (?, ?, ?, ?, ?)", payment_id, day, customer, amount, now())
+    return {"id": payment_id, "customer": customer, "total": amount, "balance": balance - amount}

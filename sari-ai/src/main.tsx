@@ -4,9 +4,11 @@ import Home from './Home';
 import EntryDialog from './EntryDialog';
 import { Ask, Expenses, Ledger, More, Sales, Stock } from './Pages';
 import { api } from './data';
-import type { Entry, Store } from './data';
+import { peso } from './data';
+import type { Entry, Receipt, Store } from './data';
 import { Icon } from './ui';
 import type { IconName } from './ui';
+import { LanguageProvider, LanguageSelect, localError, useLanguage } from './language';
 import './styles.css';
 
 const pages = [
@@ -22,7 +24,9 @@ const records = [
 ] as const;
 const allPages = [...pages, ...records];
 type Page = typeof allPages[number]['id'];
-type InstallPrompt = Event & { prompt: () => Promise<unknown> };
+const filipinoPages: Record<Page, string> = {
+  home: 'Tindahan', sales: 'Benta', stock: 'Stock', ask: 'Tanungin si Suki', more: 'Iba pa', expenses: 'Gastos', ledger: 'Utang',
+};
 
 function readPage(): Page {
   const route = window.location.hash.slice(1).split('/')[0];
@@ -42,20 +46,21 @@ function onConnectivityChange(callback: () => void) {
 }
 
 function NavLink({ id, label, icon, active }: { id: Page; label: string; icon: IconName; active: boolean }) {
+  const { t } = useLanguage();
   return <a className={active ? 'nav-link active' : 'nav-link'} href={`#${id}`} aria-current={active ? 'page' : undefined}>
-    <Icon name={icon} size={19} /><span>{label}</span>
+    <Icon name={icon} size={19} /><span>{t(label, filipinoPages[id])}</span>
   </a>;
 }
 
 function App() {
+  const { t } = useLanguage();
   const page = useSyncExternalStore(onPageChange, readPage);
   const connected = useSyncExternalStore(onConnectivityChange, () => navigator.onLine);
   const [store, setStore] = useState<Store | null>(null);
   const [problem, setProblem] = useState('');
   const [entry, open] = useState<Entry | null>(null);
 
-  const [notice, setNotice] = useState('');
-  const [installPrompt, setInstallPrompt] = useState<InstallPrompt | null>(null);
+  const [notice, setNotice] = useState<{ receipt: Receipt; entry: Entry } | null>(null);
   const refreshId = useRef(0);
   const refresh = useCallback(async () => {
     const id = ++refreshId.current;
@@ -78,24 +83,6 @@ function App() {
     };
   }, [refresh]);
   useEffect(() => { window.scrollTo(0, 0); }, [page]);
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(''), 4000);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
-  useEffect(() => {
-    function offerInstall(event: Event) {
-      event.preventDefault();
-      setInstallPrompt(event as InstallPrompt);
-    }
-    function installed() { setInstallPrompt(null); }
-    window.addEventListener('beforeinstallprompt', offerInstall);
-    window.addEventListener('appinstalled', installed);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', offerInstall);
-      window.removeEventListener('appinstalled', installed);
-    };
-  }, []);
 
   const current = allPages.find(({ id }) => page === id) ?? pages[0];
   const controls = store ? { store, open } : null;
@@ -104,7 +91,7 @@ function App() {
     if (page === 'home') content = <Home {...controls} />;
     else if (page === 'sales') content = <Sales {...controls} />;
     else if (page === 'stock') content = <Stock {...controls} />;
-    else if (page === 'ask') content = <Ask {...controls} length={7} />;
+    else if (page === 'ask') content = null;
     else if (page === 'expenses') content = <Expenses {...controls} />;
     else if (page === 'ledger') content = <Ledger {...controls} />;
     else content = <More />;
@@ -114,62 +101,76 @@ function App() {
     <a className="skip-link" href="#content" onClick={(event) => {
       event.preventDefault();
       document.getElementById('content')?.focus();
-    }}>Skip to content</a>
+    }}>{t('Skip to content', 'Lumaktaw sa nilalaman')}</a>
     <aside className="sidebar">
       <a className="brand" href="#home"><img className="shop-mark" src="/suki.svg" alt="" /><img src="/wordmark.svg" alt="SARI-AI" /></a>
       <div className="store-identity">
-        <span><strong>Your Store</strong></span></div>
-      <nav className="side-nav" aria-label="Main navigation">
+        <span><strong>{t('Your Store', 'Ang Tindahan Mo')}</strong></span></div>
+      <nav className="side-nav" aria-label={t('Main navigation', 'Pangunahing menu')}>
         {pages.map((link) => <NavLink {...link} key={link.id} active={page === link.id} />)}
       </nav>
-      <nav className="side-nav records-nav" aria-label="Store records">
-        <span>RECORDS</span>{records.map((link) => <NavLink {...link} key={link.id} active={page === link.id} />)}
+      <nav className="side-nav records-nav" aria-label={t('Store records', 'Mga tala ng tindahan')}>
+        <span>{t('RECORDS', 'MGA TALA')}</span>{records.map((link) => <NavLink {...link} key={link.id} active={page === link.id} />)}
       </nav>
-      {installPrompt && <button className="install-button" onClick={async () => {
-        await installPrompt.prompt().catch(() => undefined);
-        setInstallPrompt(null);
-      }}><Icon name="download" size={18} /> Install SARI-AI</button>}
-      <span className="rail-status"><i />{connected ? "Online" : "Offline"}</span>
+      <span className="rail-status"><i />{connected ? t('Online', 'Konektado') : t('Offline', 'Walang koneksiyon')}</span>
     </aside>
 
     <div className="workspace">
       <header className={page === 'home' ? "topbar home-topbar" : "topbar"}>
         <a href="#home" className="mobile-brand"><img src="/wordmark.svg" alt="SARI-AI" /></a>
-        <div className="breadcrumb"><span>Your Store</span><Icon name="chevron" size={13} /><strong>{current.label}</strong></div>
+        <div className="breadcrumb"><span>{t('Your Store', 'Ang Tindahan Mo')}</span><Icon name="chevron" size={13} /><strong>{t(current.label, filipinoPages[page])}</strong></div>
         <div className="top-actions">
           <span className={connected && !problem ? 'status' : 'status disconnected'}><i />{
-            !connected ? 'Offline' : problem ? 'Unavailable' : store ? 'Online' : 'Connecting'
+            !connected ? t('Offline', 'Walang koneksiyon') : problem ? t('Unavailable', 'Hindi maabot') : store ? t('Online', 'Konektado') : t('Connecting', 'Kumokonekta')
           }</span>
-          {installPrompt && <button className="icon-button mobile-install" aria-label="Install SARI-AI" onClick={async () => {
-            await installPrompt.prompt().catch(() => undefined);
-            setInstallPrompt(null);
-          }}><Icon name="download" size={18} /></button>}
+          <LanguageSelect />
           <button className="button primary quick-sale" disabled={!store || !connected}
-            onClick={() => open({ kind: 'sale' })}><Icon name="plus" size={18} /> Record sale</button>
+            onClick={() => open({ kind: 'sale' })}><Icon name="plus" size={18} /> {t('Record sale', 'Itala ang benta')}</button>
         </div>
       </header>
       <main id="content" tabIndex={-1} className="content">
-        {!connected && <p role="status" className="notice warning">Reconnect to save or refresh store records.</p>}
-        {problem && <div role="alert" className="notice warning"><span>{problem}</span>
-          <button className="text-link" onClick={() => void refresh()}>Try again</button></div>}
-        {content ?? (!problem && <p className="empty" role="status">Loading Your Store…</p>)}
+        {!connected && <p role="status" className="notice warning">{t('Reconnect to save or refresh store records.', 'Kumonekta muli para mag-save o mag-refresh.')}</p>}
+        {problem && <div role="alert" className="notice warning"><span>{localError(t, new Error(problem))}</span>
+          <button className="text-link" onClick={() => void refresh()}>{t('Try again', 'Subukan muli')}</button></div>}
+        {controls && <div hidden={page !== 'ask'}><Ask open={open} /></div>}
+        {content}
+        {!controls && !problem && <p className="empty" role="status">{t('Loading Your Store…', 'Binubuksan ang tindahan…')}</p>}
       </main>
     </div>
-    <nav className="bottom-nav" aria-label="Mobile navigation">
+    <nav className="bottom-nav" aria-label={t('Mobile navigation', 'Menu ng telepono')}>
       {pages.map((link) => <NavLink {...link} key={link.id}
         active={page === link.id || (link.id === 'more' && records.some((record) => record.id === page))} />)}
     </nav>
-    {entry && store && <EntryDialog entry={entry} store={store} close={() => open(null)} saved={() => {
+    {entry && store && <EntryDialog entry={entry} store={store} close={() => open(null)} saved={(receipt, savedEntry) => {
       open(null);
-      setNotice('Entry saved.');
+      setNotice({ receipt, entry: savedEntry });
       void refresh();
     }} />}
-    {notice && <div className="toast" role="status"><Icon name="check" size={19} />{notice}</div>}
+    {notice && <SaveReceipt {...notice} close={() => setNotice(null)} />}
   </div>;
 }
 
-createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
+function SaveReceipt({ receipt, entry, close }: { receipt: Receipt; entry: Entry; close: () => void }) {
+  const { t } = useLanguage();
+  const isSale = entry.kind === 'sale' || entry.kind === 'sale-correction';
+  const link = isSale ? '#sales/entry/' + receipt.id :
+    entry.kind === 'payment' ? '#ledger' : entry.kind === 'expense' ? '#expenses' : '#stock/history/' + (receipt.stock?.[0]?.product_id ?? '');
+  return <div className="save-receipt" role="status"><div className="receipt-title">
+    <Icon name="check" /><strong>{t('Entry saved', 'Naitala na')}</strong>
+    <button className="icon-button" aria-label={t('Dismiss receipt', 'Isara ang kumpirmasyon')} onClick={close}><Icon name="close" size={18} /></button>
+    </div>{receipt.name && <p>{receipt.name}</p>}
+    {receipt.total !== undefined && <p>{receipt.method === 'credit' ? t('Credit sale', 'Benta sa utang')
+      : isSale ? t('Cash sale', 'Benta na bayad agad') : t('Amount', 'Halaga')} · {peso(receipt.total)}</p>}
+    {receipt.balance !== undefined && <p>{t('Remaining credit', 'Natitirang utang')} · {receipt.customer} · {peso(receipt.balance)}</p>}
+    {!!receipt.stock?.length && <ul>{receipt.stock.map(row => <li key={row.product_id}>{row.name} · {row.change > 0 ? '+' : ''}{row.change} {row.unit} · {row.on_hand} {t('on hand', 'natitira')}</li>)}</ul>}
+    <a href={entry.kind === 'product' || entry.kind === 'product-details' ? '#stock' : link} onClick={close}>{t('View record', 'Tingnan ang tala')} →</a>
+  </div>;
+}
+
+createRoot(document.getElementById('root')!).render(<StrictMode><LanguageProvider><App /></LanguageProvider></StrictMode>);
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => { void navigator.serviceWorker.register('/sw.js').catch(() => undefined); });
+  void navigator.serviceWorker.getRegistration('/').then(registration => {
+    if (registration?.active?.scriptURL === new URL('/sw.js', window.location.origin).href) return registration.unregister();
+  }).catch(() => undefined);
 }

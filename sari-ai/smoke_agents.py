@@ -6,6 +6,13 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 
+def ask(endpoint, question, agent="auto"):
+    body = json.dumps({"agent": agent, "period": 7, "question": question}).encode()
+    request = Request(endpoint, data=body, headers={"Content-Type": "application/json"})
+    with urlopen(request, timeout=90) as response:
+        return json.load(response)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("url", help="SARI-AI app URL, such as https://your-app.onrender.com")
@@ -19,11 +26,8 @@ def main():
     }
     failed = False
     for agent, question in questions.items():
-        body = json.dumps({"agent": "auto", "period": 7, "question": question}).encode()
-        req = Request(endpoint, data=body, headers={"Content-Type": "application/json"})
         try:
-            with urlopen(req, timeout=90) as response:
-                reply = json.load(response)
+            reply = ask(endpoint, question)
             if reply.get("agent") != agent:
                 raise ValueError("Wrong agent selected")
             if reply.get("source") != "external":
@@ -44,6 +48,15 @@ def main():
             failed = True
         else:
             print(f"{agent}: PASS (external response)")
+        try:
+            guide = ask(endpoint, "How do I record a repayment?", agent)
+            if guide.get("source") != "guide" or guide.get("destination") != "ledger" or "draft" in guide:
+                raise ValueError("Expected a link to Ledger and directions without a transaction draft")
+        except (URLError, OSError, ValueError) as error:
+            print(f"{agent}: FAIL (app guide: {error})")
+            failed = True
+        else:
+            print(f"{agent}: PASS (app guide)")
     return int(failed)
 
 

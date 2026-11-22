@@ -1,39 +1,78 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, ledger, peso } from './data';
-import type { Entry, Line, Store } from './data';
+import type { Entry, Line, Receipt, Store } from './data';
+import { expenseLabels, localError, useLanguage } from './language';
 import { Icon } from './ui';
 
-const titles = { sale: 'Record a sale', product: 'Add a product', stock: 'Log stock', expense: 'Log an expense', payment: 'Record a repayment' };
-const routes = { sale: 'sales', product: 'products', stock: 'stock', expense: 'expenses', payment: 'payments' };
+const routes = {
+  sale: 'sales', product: 'products', stock: 'stock', expense: 'expenses', payment: 'payments',
+  'sale-correction': 'sales/correction', 'product-details': 'products/details',
+};
 const emptyLine = (): Line => ({ product_id: '', quantity: '', note: '' });
 
+async function photoThumbnail(file: File) {
+  const image = await createImageBitmap(file);
+  try {
+    const canvas = document.createElement('canvas');
+    const scale = Math.min(1, 360 / Math.max(image.width, image.height));
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Choose a valid product photo.');
+    context.fillStyle = 'white';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.76);
+  } finally { image.close(); }
+}
+
 export default function EntryDialog({ entry, store, close, saved }: {
-  entry: Entry; store: Store; close: () => void; saved: () => void;
+  entry: Entry; store: Store; close: () => void; saved: (receipt: Receipt, entry: Entry) => void;
 }) {
+  const { t } = useLanguage();
   const dialog = useRef<HTMLDialogElement>(null);
   const [lines, setLines] = useState(entry.lines ?? [emptyLine()]);
   const [reason, setReason] = useState(entry.reason ?? 'restock');
-  const [method, setMethod] = useState(entry.method ?? 'cash');
+  const [method, setMethod] = useState(entry.sale?.method ?? entry.method ?? 'cash');
   const [busy, setBusy] = useState(false);
+  const [readingPhoto, setReadingPhoto] = useState(false);
+  const [photo, setPhoto] = useState('');
   const [error, setError] = useState('');
   const customers = ledger(store);
-  const total = lines.reduce((sum, line) => sum + (store.products.find((p) => p.id === line.product_id)?.price ?? 0)
-    * (Number(line.quantity) || 0), 0);
+  const isCorrection = entry.kind === 'sale-correction';
   const updatingStock = entry.kind === 'stock';
-  const isSale = entry.kind === 'sale';
+  const isSale = entry.kind === 'sale' || isCorrection;
+  const catalog = new Map(store.products.map(product => [product.id, product]));
+  const original = new Map(store.items.filter(item => item.sale_id === entry.sale?.id).map(item => [item.product_id, item]));
+  const total = lines.reduce((sum, line) => sum + (original.get(line.product_id)?.price ?? catalog.get(line.product_id)?.price ?? 0)
+    * (Number(line.quantity) || 0), 0);
+  const title = {
+    sale: t('Record a sale', 'Itala ang benta'), product: t('Add a product', 'Magdagdag ng item'),
+    stock: t('Log stock', 'Itala ang stock'), expense: t('Log an expense', 'Itala ang gastos'),
+    payment: t('Record a repayment', 'Itala ang bayad'), 'sale-correction': t('Correct sale', 'Iwasto ang benta'),
+    'product-details': t('Edit photo or cost', 'Baguhin ang litrato o puhunan'),
+  }[entry.kind];
 
   useEffect(() => { dialog.current?.showModal(); }, []);
-
   function update(index: number, patch: Partial<Line>) {
-    setLines((current) => current.map((line, i) => i === index ? { ...line, ...patch } : line));
+    setLines(current => current.map((line, i) => i === index ? { ...line, ...patch } : line));
+  }
+  async function selectPhoto(file: File) {
+    if (file.size > 12_000_000) {
+      setError(t('Choose a photo under 12 MB.', 'Pumili ng litratong mas maliit sa 12 MB.'));
+      return;
+    }
+    setReadingPhoto(true); setError('');
+    try { setPhoto(await photoThumbnail(file)); }
+    catch { setError(t('Choose a JPEG, PNG, or WebP photo.', 'Pumili ng litratong JPEG, PNG, o WebP.')); }
+    finally { setReadingPhoto(false); }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    setError('');
+    if (busy || readingPhoto) return;
+    setBusy(true); setError('');
     const form = new FormData(event.currentTarget);
     const value = (name: string) => String(form.get(name) ?? '').trim();
     const money = (name: string) => Math.round(Number(value(name)) * 100);
@@ -41,117 +80,123 @@ export default function EntryDialog({ entry, store, close, saved }: {
     let body: object;
     if (entry.kind === 'product') {
       body = { day, name: value('name'), category: value('category'), unit: value('unit'), stock: Number(value('stock')),
-        threshold: Number(value('threshold')), price: money('price'), cost: money('cost'), note: value('note') };
+        threshold: Number(value('threshold')), price: money('price'), cost: money('cost'), note: value('note'), photo };
+    } else if (entry.kind === 'product-details') {
+      body = { product_id: entry.product?.id, cost: money('cost'), photo };
     } else if (entry.kind === 'expense') {
       body = { day, category: value('category'), description: value('description'), amount: money('amount') };
     } else if (entry.kind === 'payment') {
       body = { day, customer: value('customer'), amount: money('amount') };
     } else {
-      const entries = lines.map((line) => ({ ...line, quantity: Number(line.quantity) }));
-      body = updatingStock ? { day, reason, entries } : { day, method, customer: value('customer'), entries };
+      const entries = lines.map(line => {
+        const supplier = updatingStock && reason === 'restock' && line.supplier_cost
+          ? t('Supplier unit price', 'Presyo bawat yunit sa resibo') + ' ' + peso(Math.round(Number(line.supplier_cost) * 100)) : '';
+        return { product_id: line.product_id, quantity: Number(line.quantity),
+          note: [line.note.slice(0, supplier ? 420 : 500), supplier].filter(Boolean).join(' · ') };
+      });
+      body = isCorrection ? { sale_id: entry.sale?.id, revision: entry.sale?.revision ?? 0, note: value('correction'), entries } :
+        updatingStock ? { day, reason, entries } : { day, method, customer: value('customer'), entries };
     }
-
-    try {
-      await api(routes[entry.kind], body);
-      saved();
-    } catch (problem) {
-      setError(problem instanceof Error ? problem.message : 'Could not save. Try again.');
-      setBusy(false);
-    }
+    try { saved(await api<Receipt>(routes[entry.kind], body), entry); }
+    catch (problem) { setError(localError(t, problem)); setBusy(false); }
   }
 
-  return <dialog ref={dialog} className="entry-dialog" onCancel={(event) => {
-    event.preventDefault();
-    if (!busy) close();
-  }}>
+  return <dialog ref={dialog} className="entry-dialog" onCancel={event => { event.preventDefault(); if (!busy) close(); }}>
     <form onSubmit={submit}>
-      <header className="dialog-header"><h2>{titles[entry.kind]}</h2>
-        <button type="button" className="icon-button" aria-label="Close" onClick={close} disabled={busy}><Icon name="close" /></button>
-      </header>
+      <header className="dialog-header"><h2>{title}</h2><button type="button" className="icon-button"
+        aria-label={t('Close', 'Isara')} onClick={close} disabled={busy}><Icon name="close" /></button></header>
       <div className="dialog-fields">
-        {entry.original && <div className="draft-header"><small>Original entry</small><blockquote>{entry.original}</blockquote>
-          <div className="suki-byline"><img src="/suki.svg" alt=""/><strong>Suki’s draft</strong>
-            {entry.draftSource === 'records' && <small>Local fallback</small>}</div></div>}
-        <div className="field-grid">
-          <label>Date<input name="day" type="date" defaultValue={entry.day ?? store.today} max={store.today} required /></label>
-          {updatingStock && <label>Stock entry type<select value={reason} onChange={(event) => setReason(event.target.value as typeof reason)}>
-            <option value="restock">Stock-in</option><option value="count">Physical count</option><option value="waste">Wastage</option>
-          </select></label>}
-          {isSale && <label>Payment<select value={method} onChange={(event) => setMethod(event.target.value as typeof method)}>
-            <option value="cash">Cash</option><option value="credit">Credit</option>
-          </select></label>}
-        </div>
-
-        {entry.kind === 'product' && <>
-          <label>Product name<input name="name" placeholder="e.g. Sugar" maxLength={100} required /></label>
-          <div className="field-grid">
-            <label>Category<input name="category" placeholder="e.g. Pantry" maxLength={100} required /></label>
-            <label>Unit<input name="unit" placeholder="e.g. pack" maxLength={100} required /></label>
-            <label>Selling price (₱)<input name="price" type="number" step="0.01" min="0" max="100000" required /></label>
-            <label>Unit cost (₱)<input name="cost" type="number" step="0.01" min="0" max="100000" /></label>
-            <label>Opening count<input name="stock" type="number" min="0" max="1000000" defaultValue="0" required /></label>
-            <label>Low-stock threshold<input name="threshold" type="number" min="0" max="1000000" defaultValue="5" required /></label>
-          </div>
-          <label>Opening count note <span>(optional)</span><input name="note" maxLength={500} placeholder="e.g. Copied from inventory notebook" /></label>
-        </>}
-
-        {(isSale || updatingStock) && <>
-          {updatingStock && <p className="field-help">{
-            reason === 'count' ? 'Enter the total number you physically counted.' :
-              reason === 'waste' ? 'Enter the number of units to remove.' : 'Enter the number of units added to the shelf.'
-          }</p>}
-          <div className="entry-lines">{lines.map((line, index) => <div className="line-fields" key={index}>
-            <label>Product<select required value={line.product_id} onChange={(event) => update(index, { product_id: event.target.value })}>
-              <option value="">Choose a product</option>
-              {store.products.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.stock} in stock</option>)}
-            </select></label>
-            <label>{reason === 'count' && updatingStock ? 'Count' : 'Quantity'}
-              <input type="number" value={line.quantity} min={reason === 'count' && updatingStock ? 0 : 1} max="1000000" required
-                onChange={(event) => update(index, { quantity: event.target.value })} />
-            </label>
-            <button type="button" className="icon-button remove-line" aria-label={`Remove line ${index + 1}`}
-              disabled={lines.length === 1} onClick={() => setLines(lines.filter((_, i) => i !== index))}><Icon name="close" size={18} /></button>
-            {updatingStock && line.product_id && line.quantity !== '' && <p className="line-note field-help">On hand · {(() => {
-              const stock = store.products.find(p => p.id === line.product_id)?.stock ?? 0;
-              const quantity = Number(line.quantity);
-              const next = reason === 'count' ? quantity : stock + (reason === 'waste' ? -quantity : quantity);
-              return stock + ' → ' + next;
-            })()}</p>}
-            {updatingStock && <label className="line-note">Note <span>(optional)</span>
-              <input value={line.note} maxLength={500} placeholder="e.g. Count from notebook"
-                onChange={(event) => update(index, { note: event.target.value })} />
-            </label>}
-          </div>)}</div>
-          <button type="button" className="button subtle" disabled={lines.length >= 50} onClick={() => setLines([...lines, emptyLine()])}>
-            <Icon name="plus" size={16} /> Add another item
-          </button>
-        </>}
-
-        {isSale && method === 'credit' && <label>Customer name
-          <input name="customer" defaultValue={entry.customer} list="customers" maxLength={100} required />
-          <datalist id="customers">{customers.map(({ name }) => <option key={name} value={name} />)}</datalist>
-        </label>}
-
-        {entry.kind === 'expense' && <>
-          <label>Description<input name="description" defaultValue={entry.description} maxLength={100} placeholder="e.g. Market trip fare" required /></label>
-          <div className="field-grid"><label>Category<select name="category" defaultValue={entry.category}>
-            {['Transport', 'Supplies', 'Utilities', 'Rent', 'Wages', 'Other'].map((category) => <option key={category}>{category}</option>)}
-          </select></label><label>Amount (₱)<input name="amount" type="number" defaultValue={entry.amount} min="0.01" max="100000" step="0.01" required /></label></div>
-        </>}
-
-        {entry.kind === 'payment' && <div className="field-grid">
-          <label>Customer<select name="customer" defaultValue={entry.customer ?? ''} required><option value="">Choose a customer</option>
-            {customers.filter(({ balance }) => balance > 0).map(({ name, balance }) =>
-              <option key={name} value={name}>{name} · {peso(balance)}</option>)}
-          </select></label>
-          <label>Amount (₱)<input name="amount" type="number" min="0.01" max="100000" step="0.01" required /></label>
+        {entry.original && <div className="draft-header"><small>{t('Original entry', 'Orihinal na tala')}</small>
+          <blockquote>{entry.original}</blockquote><div className="suki-byline"><img src="/suki.svg" alt="" />
+            <strong>{t('Suki’s draft', 'Draft ni Suki')}</strong></div></div>}
+        {isCorrection && <p>{t('Correct the items or quantities. The original payment method, date, and customer apply.',
+          'Iwasto ang item o bilang. Gagamitin ang orihinal na paraan ng bayad, petsa, at mamimili.')}</p>}
+        {entry.kind !== 'product-details' && !isCorrection && <div className="field-grid">
+          <label>{t('Date', 'Petsa')}<input name="day" type="date" defaultValue={entry.day ?? store.today} max={store.today} required /></label>
+          {updatingStock && <label>{t('Stock entry type', 'Uri ng tala sa stock')}<select value={reason}
+            onChange={event => setReason(event.target.value as typeof reason)}>
+            <option value="restock">Stock-in</option><option value="count">{t('Physical count', 'Aktuwal na bilang')}</option>
+            <option value="waste">{t('Wastage', 'Sira o tapon')}</option></select></label>}
+          {isSale && <label>{t('Payment', 'Bayad')}<select value={method} onChange={event => setMethod(event.target.value as typeof method)}>
+            <option value="cash">{t('Cash', 'Bayad agad')}</option><option value="credit">{t('Credit', 'Utang')}</option></select></label>}
         </div>}
+        {entry.kind === 'product' && <>
+          <label>{t('Product name', 'Pangalan ng item')}<input name="name" maxLength={100} required /></label>
+          <div className="field-grid"><label>{t('Category', 'Kategorya')}<input name="category" maxLength={100} required /></label>
+            <label>{t('Unit', 'Yunit')}<input name="unit" maxLength={100} required /></label>
+            <label>{t('Selling price (₱)', 'Presyo (₱)')}<input name="price" type="number" step="0.01" min="0" max="100000" required /></label>
+            <label>{t('Opening count', 'Panimulang bilang')}<input name="stock" type="number" min="0" max="1000000" defaultValue="0" required /></label>
+            <label>{t('Low-stock threshold', 'Minimum na stock')}<input name="threshold" type="number" min="0" max="1000000" defaultValue="5" required /></label></div>
+          <label>{t('Opening count note (optional)', 'Tala sa panimulang bilang (opsyonal)')}<input name="note" maxLength={500} /></label>
+        </>}
+        {(entry.kind === 'product' || entry.kind === 'product-details') && <>
+          {entry.product && <strong>{entry.product.name}</strong>}
+          <label>{t('Unit cost (₱)', 'Puhunan bawat yunit (₱)')}<input name="cost" type="number" step="0.01" min="0" max="100000"
+            defaultValue={entry.product ? entry.product.cost / 100 : ''} required={entry.kind === 'product-details'} /></label>
+          <label>{t('Product photo (optional)', 'Litrato ng item (opsyonal)')}<input type="file" accept="image/*" capture="environment"
+            disabled={readingPhoto || busy} onChange={event => {
+              const file = event.target.files?.[0];
+              if (file) void selectPhoto(file);
+            }} /></label>
+          {(photo || entry.product?.photo) && <img className="entry-photo" src={photo || entry.product?.photo || ''} alt="" />}
+        </>}
+        {(isSale || updatingStock) && <>
+          {updatingStock && <p className="field-help">{reason === 'count'
+            ? t('Enter the total you counted on the shelf.', 'Ilagay ang kabuuang nabilang sa istante.')
+            : reason === 'waste' ? t('Enter the quantity to remove.', 'Ilagay ang bilang na babawasan.')
+              : t('Enter the quantity received in the unit shown.', 'Ilagay ang dami ng dumating sa yunit na ipinapakita.')}</p>}
+          <div className="entry-lines">{lines.map((line, index) => {
+            const product = catalog.get(line.product_id);
+            const quantity = Number(line.quantity);
+            const old = original.get(line.product_id)?.quantity ?? 0;
+            const after = product ? (updatingStock && reason === 'count' ? quantity :
+              product.stock + (updatingStock && reason === 'restock' ? quantity : old - quantity)) : 0;
+            return <div className="line-fields" key={index}>
+              <label>{t('Product', 'Item')}<select required value={line.product_id}
+                onChange={event => update(index, { product_id: event.target.value })}>
+                <option value="">{t('Choose a product', 'Pumili ng item')}</option>
+                {store.products.map(p => <option key={p.id} value={p.id}>{p.name} · {p.stock} {p.unit}</option>)}</select></label>
+              <label>{t('Quantity', 'Bilang')}{product ? ' · ' + product.unit : ''}
+                <input type="number" inputMode="numeric" value={line.quantity} min={reason === 'count' && updatingStock ? 0 : 1}
+                  max="1000000" required onChange={event => update(index, { quantity: event.target.value })} /></label>
+              <button type="button" className="icon-button remove-line" aria-label={t('Remove line', 'Alisin ang linya') + ' ' + (index + 1)}
+                disabled={lines.length === 1} onClick={() => setLines(lines.filter((_, i) => i !== index))}><Icon name="close" size={18} /></button>
+              {product && line.quantity !== '' && <p className="line-note field-help">{t('Stock on hand', 'Natitirang stock')} · {product.stock} → {after} {product.unit}</p>}
+              {updatingStock && reason === 'restock' && line.supplier_cost !== undefined &&
+                <label className="line-note">{t('Supplier unit price (₱)', 'Presyo bawat yunit sa resibo (₱)')}
+                  <input type="number" value={line.supplier_cost} min="0" max="100000" step="0.01"
+                    onChange={event => update(index, { supplier_cost: event.target.value })} /></label>}
+              {updatingStock && <label className="line-note">{t('Note (optional)', 'Detalye (opsyonal)')}<input value={line.note}
+                maxLength={500} onChange={event => update(index, { note: event.target.value })} /></label>}
+            </div>;
+          })}</div>
+          <button type="button" className="button subtle" disabled={lines.length >= 50} onClick={() => setLines([...lines, emptyLine()])}>
+            <Icon name="plus" size={16} /> {t('Add another item', 'Magdagdag ng isa pang item')}</button>
+          {isCorrection && <label>{t('Reason for correction', 'Dahilan ng pagwawasto')}<input name="correction" maxLength={200} required /></label>}
+        </>}
+        {entry.kind === 'sale' && method === 'credit' && <label>{t('Customer name', 'Pangalan ng mamimili')}
+          <input name="customer" defaultValue={entry.customer} list="customers" maxLength={100} required />
+          <datalist id="customers">{customers.map(({ name }) => <option key={name} value={name} />)}</datalist></label>}
+        {entry.kind === 'expense' && <>
+          <label>{t('Description', 'Detalye')}<input name="description" defaultValue={entry.description} maxLength={100} required /></label>
+          <div className="field-grid"><label>{t('Category', 'Kategorya')}<select name="category" defaultValue={entry.category}>
+            {Object.entries(expenseLabels).map(([en, fil]) => <option key={en} value={en}>{t(en, fil)}</option>)}</select></label>
+            <label>{t('Amount (₱)', 'Halaga (₱)')}<input name="amount" type="number" defaultValue={entry.amount}
+              min="0.01" max="100000" step="0.01" required /></label></div>
+        </>}
+        {entry.kind === 'payment' && <div className="field-grid">
+          <label>{t('Customer', 'Mamimili')}<select name="customer" defaultValue={entry.customer ?? ''} required>
+            <option value="">{t('Choose a customer', 'Pumili ng mamimili')}</option>{customers.filter(({ balance }) => balance > 0)
+              .map(({ name, balance }) => <option key={name} value={name}>{name} · {peso(balance)}</option>)}</select></label>
+          <label>{t('Amount (₱)', 'Halaga (₱)')}<input name="amount" type="number" defaultValue={entry.amount}
+            min="0.01" max="100000" step="0.01" required /></label></div>}
         {error && <p className="form-error" role="alert">{error}</p>}
       </div>
       <footer className="dialog-footer">
-        {isSale && <strong className="sale-total">{peso(total)}</strong>}
-        <button type="button" className="button secondary" onClick={close} disabled={busy}>Cancel</button>
-        <button className="button primary" disabled={busy}>{busy ? 'Saving…' : updatingStock && reason === 'restock' ? 'Confirm stock-in' : 'Save entry'}</button>
+        {isSale && <strong className="sale-total">{method === 'credit' ? t('Credit', 'Utang') : t('Cash', 'Bayad agad')} · {peso(total)}</strong>}
+        <button type="button" className="button secondary" onClick={close} disabled={busy}>{t('Cancel', 'Bumalik')}</button>
+        <button className="button primary" disabled={busy || readingPhoto}>{busy ? t('Saving…', 'Sine-save…')
+          : t('Confirm and save', 'Kumpirmahin at i-save')}</button>
       </footer>
     </form>
   </dialog>;

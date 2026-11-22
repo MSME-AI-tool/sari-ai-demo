@@ -299,3 +299,74 @@ body { font-variant-numeric:tabular-nums; }
  .stock-grid { grid-template-columns:minmax(0,1fr); }
  .watch-footer { margin:0; }
 }
+/* Stock catalog and in-context store tools */
+.stock-catalog { margin: 0 0 26px; }
+.catalog-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(145px, 235px); gap: 12px; }
+.catalog-controls .search-field { margin: 0; min-height: 45px; background: #fff; }
+.stock-filters { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+.stock-filters button { min-height: 42px; border-radius: 22px; padding: 8px 13px; border: 1px solid #dce6f2; background: #fff; color: #334761; font: inherit; cursor: pointer; }
+.stock-filters button[aria-pressed="true"] { background: #e8f1ff; border-color: #9ec1fa; color: #174da2; font-weight: 700; }
+.stock-filters span { margin-left: 4px; font-size: .82em; }
+.catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 222px), 1fr)); gap: 16px; }
+.catalog-card { background: #fff; border: 1px solid #e0e8f2; border-radius: 18px; position: relative; min-width: 0; }
+.catalog-card > .product-photo { border-radius: 17px 17px 0 0; }
+.product-photo { display: grid; place-items: center; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; background-color: #e7eef9; }
+.seed-photo { background-image: url('/catalog-photos.webp'); background-repeat: no-repeat; background-size: 400% 200%; }
+.photo-initial { color: #345481; font-size: 2rem; font-weight: 750; }
+.catalog-body { padding: 13px; }
+.catalog-product { display: flex; justify-content: space-between; gap: 9px; align-items: flex-start; }
+.catalog-product h2 { margin: 0; font-size: 1rem; line-height: 1.22; overflow-wrap: anywhere; }
+.catalog-product p, .catalog-cover { margin: 5px 0 0; color: #52647c; font-size: .82rem; }
+.catalog-product .count-tag, .catalog-product .stock-tag { white-space: nowrap; font-size: .72rem; }
+.catalog-cover { min-height: 1.45em; margin: 8px 0 13px; }
+.catalog-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.catalog-actions .button { padding: 8px 10px; min-height: 40px; flex: 1 0 auto; justify-content: center; }
+.catalog-more { position: relative; }
+.catalog-more summary { display: grid; place-items: center; list-style: none; width: 38px; height: 40px; border: 1px solid #e0e8f2; border-radius: 9px; cursor: pointer; }
+.catalog-more summary::-webkit-details-marker { display: none; }
+.catalog-more div { position: absolute; right: 0; top: 100%; z-index: 5; display: grid; min-width: 170px; background: #fff; border: 1px solid #dce6f2; border-radius: 10px; box-shadow: 0 8px 23px #15294a22; padding: 5px; }
+.catalog-more a, .catalog-more button { display: block; text-align: left; padding: 10px; color: #274771; text-decoration: none; background: none; border: 0; font: inherit; cursor: pointer; }
+.catalog-more a:hover, .catalog-more button:hover { background: #eef4ff; }
+.stock-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 18px 0; align-items: start; }
+.stock-tools .panel { margin: 0; }
+.capture-form { display: grid; gap: 10px; text-align: left; }
+.capture-form textarea { width: 100%; resize: vertical; }
+.capture-form > button { justify-self: start; }
+.capture-actions { flex-wrap: wrap; }
+.file-button { position: relative; overflow: hidden; cursor: pointer; }
+.file-button input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; padding: 0; }
+.file-button:focus-within { outline: 2px solid #1859c7; outline-offset: 2px; }
+.capture-matches { display: flex; gap: 8px; flex-wrap: wrap; }
+.capture-matches .product-photo { width: 40px; border-radius: 6px; }
+.planner-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.planner-fields input, .planner-fields select { width: 100%; min-width: 0; }
+.tool-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.tool-metrics > div { padding: 10px; border-radius: 10px; background: #eef4ff; }
+.tool-metrics dt { font-size: .8rem; color: #486187; }
+.tool-metrics dd { margin: 4px 0 0; color: #163969; font-weight: 750; }
+.tool-bars, .health-actions { list-style: none; padding: 0; }
+.tool-bars li { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 10px 0; }
+.tool-bars li div { grid-column: 1 / -1; height: 7px; background: #eef3fc; border-radius: 6px; overflow: hidden; }
+.tool-bars i { display: block; height: 100%; background: #367be9; border-radius: inherit; }
+.health-actions li { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #e0e8f2; padding: 8px 0; }
+.record-highlight { background: #eef4ff; }
+.entry-photo { width: 100px; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 10px; }
+.save-receipt { position: fixed; z-index: 10; right: 24px; bottom: 24px; width: min(380px, calc(100vw - 32px)); max-height: 50vh; overflow: auto; background: #ecfbf2; color: #124738; border: 1px solid #a6d8bf; border-radius: 16px; padding: 12px 16px; box-shadow: 0 8px 25px #163c3130; }
+.receipt-title { display: flex; gap: 8px; align-items: center; }
+.receipt-title button { margin-left: auto; }
+.save-receipt p { margin: 4px 0; }
+.save-receipt ul { margin: 8px 0; padding-left: 18px; }
+.save-receipt a { font-weight: 700; color: #124738; }
+.language-control select { min-height: 38px; padding-inline: 9px 22px; }
+@media (max-width: 760px) {
+  .stock-tools { grid-template-columns: 1fr; }
+  .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .catalog-controls { grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+  .catalog-controls select { max-width: 145px; }
+  .catalog-body { padding: 9px; }
+  .catalog-product { flex-direction: column; gap: 5px; }
+  .catalog-actions .button { min-height: 44px; padding-inline: 6px; font-size: .77rem; }
+  .catalog-more summary { min-height: 44px; width: 30px; }
+  .save-receipt { right: 16px; bottom: calc(79px + env(safe-area-inset-bottom)); }
+  .language-control select { max-width: 100px; }
+}

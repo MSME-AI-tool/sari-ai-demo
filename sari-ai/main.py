@@ -1,4 +1,6 @@
 import json
+import base64
+import binascii
 import mimetypes
 from datetime import date
 from pathlib import Path
@@ -49,16 +51,35 @@ def lines(entry, minimum, include_note=False):
 
 
 def create_product(entry):
-    store.add_product(record_day(entry), text(entry, "name"), text(entry, "category"), text(entry, "unit"),
+    return store.add_product(record_day(entry), text(entry, "name"), text(entry, "category"), text(entry, "unit"),
                       number(entry, "price", maximum=10_000_000), number(entry, "cost", maximum=10_000_000),
-                      number(entry, "stock"), number(entry, "threshold"), text(entry, "note", 500, required=False))
+                      number(entry, "stock"), number(entry, "threshold"), text(entry, "note", 500, required=False),
+                      product_photo(entry))
+
+
+def product_photo(entry):
+    photo = text(entry, "photo", 250_000, required=False)
+    if not photo:
+        return ""
+    header, _, content = photo.partition(",")
+    try:
+        if header != "data:image/jpeg;base64" or not base64.b64decode(content, validate=True).startswith(b"\xff\xd8\xff"):
+            raise ValueError
+    except (ValueError, binascii.Error) as error:
+        raise store.StoreError("Choose a valid product photo.") from error
+    return photo
+
+
+def revise_product(entry):
+    return store.update_product(text(entry, "product_id"), number(entry, "cost", maximum=10_000_000),
+                                product_photo(entry))
 
 
 def create_stock_entry(entry):
     reason = text(entry, "reason")
     if reason not in ("restock", "count", "waste"):
         raise store.StoreError("Choose a valid stock entry type.")
-    store.add_movements(record_day(entry), reason, lines(entry, 0 if reason == "count" else 1, include_note=True))
+    return store.add_movements(record_day(entry), reason, lines(entry, 0 if reason == "count" else 1, include_note=True))
 
 
 def create_sale(entry):
@@ -66,27 +87,37 @@ def create_sale(entry):
     if method not in ("cash", "credit"):
         raise store.StoreError("Choose cash or credit.")
     customer = text(entry, "customer") if method == "credit" else ""
-    store.add_sale(record_day(entry), method, customer, lines(entry, 1))
+    return store.add_sale(record_day(entry), method, customer, lines(entry, 1))
+
+
+def revise_sale(entry):
+    return store.correct_sale(text(entry, "sale_id"), number(entry, "revision"),
+                              lines(entry, 1), text(entry, "note", 200))
 
 
 def create_expense(entry):
-    store.add_expense(record_day(entry), text(entry, "category"), text(entry, "description"),
+    return store.add_expense(record_day(entry), text(entry, "category"), text(entry, "description"),
                       number(entry, "amount", 1, 10_000_000))
 
 
 def create_payment(entry):
-    store.add_payment(record_day(entry), text(entry, "customer"), number(entry, "amount", 1, 10_000_000))
+    return store.add_payment(record_day(entry), text(entry, "customer"), number(entry, "amount", 1, 10_000_000))
 
 
 def ask_store(entry):
-    question = text(entry, "question", 500)
+    question = text(entry, "question", 4000)
     length = number(entry, "period", 1, 14)
-    mode = text(entry, "agent", 20)
+    mode = text(entry, "agent", 20, required=False) or "auto"
+    language = "fil" if entry.get("language") == "fil" else "en"
+    context = text(entry, "context", 4000, required=False)
     if length not in {1, 7, 14}:
         raise store.StoreError("Choose today, 7 days, or 14 days.")
     if mode != "auto" and mode not in agents.AGENTS:
         raise store.StoreError("Choose a valid agent.")
-    return agents.ask(store.snapshot(), question, length, mode)
+    snapshot = store.snapshot()
+    if entry.get("capture") in ("receipt", "product"):
+        return agents.capture(snapshot, question, entry["capture"], language)
+    return agents.ask(snapshot, question, length, mode, language, context=context)
 
 
 WRITES = {
@@ -95,6 +126,8 @@ WRITES = {
     API + "sales": create_sale,
     API + "expenses": create_expense,
     API + "payments": create_payment,
+    API + "sales/correction": revise_sale,
+    API + "products/details": revise_product,
 }
 
 
@@ -111,13 +144,13 @@ def json_output(start, status, data, head=False):
 def request_body(environ):
     try:
         length = int(environ.get("CONTENT_LENGTH") or 0)
-        if not 1 <= length <= 65536:
+        if not 1 <= length <= 262144:
             raise ValueError
         payload = json.loads(environ["wsgi.input"].read(length))
         if not isinstance(payload, dict):
             raise ValueError
     except (ValueError, UnicodeDecodeError) as error:
-        raise store.StoreError("Enter a valid record of up to 64 KB.") from error
+        raise store.StoreError("Enter a valid record of up to 256 KB.") from error
     return payload
 
 
@@ -137,10 +170,10 @@ def application(environ, start):
                 entry = request_body(environ)
                 if path == API + "ask":
                     return json_output(start, "200 OK", ask_store(entry))
-                WRITES[path](entry)
+                receipt = WRITES[path](entry)
             except store.StoreError as error:
                 return json_output(start, "422 Unprocessable Entity", {"detail": str(error)})
-            return json_output(start, "201 Created", {"saved": True})
+            return json_output(start, "201 Created", {"saved": True, **receipt})
         return json_output(start, "404 Not Found", {"detail": "Route not found."}, head)
     if method not in ("GET", "HEAD"):
         return json_output(start, "405 Method Not Allowed", {"detail": "Method not allowed."})
