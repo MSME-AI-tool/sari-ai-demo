@@ -23,43 +23,18 @@ Render can create the web service and PostgreSQL database from `render.yaml` at 
 
 The blueprint uses Render's free demo plans. Free web services can cold-start, and free Render Postgres expires after 30 days. Use a persistent database plan for records that need to survive beyond the demo.
 
-### Use SEA-LION with the free Blueprint
+### Configure Ask Suki
 
-The Blueprint configures the direct [SEA-LION endpoint](https://docs.sea-lion.ai/guides/inferencing/api) and the `aisingapore/Qwen-SEA-LION-v4.5-27B-IT` model. Enter your SEA-LION trial key in the web service's **Environment** settings as `FREELLMAPI_API_KEY`. For an existing deployment configured manually, set `FREELLMAPI_BASE_URL=https://api.sea-lion.ai/v1` and `FREELLMAPI_MODEL=aisingapore/Qwen-SEA-LION-v4.5-27B-IT` there too. Render keeps the key server-side.
+Set these secrets in the SARI-AI web service's **Environment** on Render, or in the environment that starts the local backend.
 
-In **Ask AI**, a model reply shows **Live AI**. The app's built-in directions show **App guide** and link to the relevant screen. Record-based answers shown as **Local fallback** are available when the AI endpoint is unavailable. Run `python smoke_agents.py https://YOUR-SERVICE.onrender.com` for read-only checks of all four live agents and their app guidance.
+| Secret | Provider | Model |
+| --- | --- | --- |
+| `GROQ_API_KEY` | Groq | `openai/gpt-oss-20b` |
+| `OPENROUTER_API_KEY` | OpenRouter | `nvidia/nemotron-3.5-super-vl:free` |
 
-## Connect Ask AI to FreeLLMAPI
+Suki tries Groq first, then OpenRouter if Groq cannot return a usable reply. Either key works on its own. If the configured providers are unavailable, Suki uses store records and app guidance. Model replies display **Live AI**. Run `python smoke_agents.py https://YOUR-SERVICE.onrender.com` for read-only checks of all four agents.
 
-The unified API key on the FreeLLMAPI dashboard belongs to that gateway instance. If your dashboard is already hosted at a reachable HTTPS address, use that gateway's URL ending in `/v1` as `FREELLMAPI_BASE_URL` and its unified key as `FREELLMAPI_API_KEY` in your SARI-AI web service's **Environment** settings. A gateway running on your PC can serve a local SARI-AI backend. For local Windows testing, use the same PowerShell session that starts `python main.py` and use the port shown by your gateway.
-
-```powershell
-$env:FREELLMAPI_BASE_URL = 'http://127.0.0.1:3001/v1'
-$env:FREELLMAPI_API_KEY = '<unified key from your FreeLLMAPI gateway>'
-$env:FREELLMAPI_MODEL = 'auto'
-```
-
-### Run a new FreeLLMAPI gateway on Render
-
-1. In Render, choose **New → Private Service → Existing Image** and enter `ghcr.io/tashfeenahmed/freellmapi:latest`. Use the same **workspace and region** as the SARI-AI web service. The private service and its persistent disk are paid. Attach the disk at `/app/server/data` to preserve the gateway's settings and keys across restarts. [Render private services](https://render.com/docs/private-services) · [Render persistent disks](https://render.com/docs/disks)
-2. On the gateway service, set `HOST=0.0.0.0`, `PORT=3001`, `FREEAPI_DB_PATH=/app/server/data/freeapi.db`, and `ENCRYPTION_KEY` to a new random 64-character hex value. Generate it locally with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"` and retain the same value across deployments. [FreeLLMAPI Docker setup](https://github.com/tashfeenahmed/freellmapi/blob/main/docs/en/install/01-install.md#docker-image--operations)
-3. Put one upstream provider credential in the gateway's `FREEAPI_CONFIG_JSON` environment variable. This example uses Groq. Substitute your provider's platform identifier and its API key. The unified client key from another gateway does not configure a provider. Use a strong, unique dashboard password in the JSON. [FreeLLMAPI startup config](https://github.com/tashfeenahmed/freellmapi/blob/main/docs/en/install/01-install.md#declarative-startup-config)
-
-   ```json
-   {"admin":{"email":"your-email@example.com","password":"replace-with-a-strong-password"},"keys":[{"platform":"groq","key":"replace-with-the-provider-key"}]}
-   ```
-
-4. Deploy the gateway. On its **Connect → Internal** tab, copy the address, for example `freellmapi-ab12:3001`. On the gateway's **Shell** tab, run the following read-only command to retrieve this instance's unified client key. Copy its output directly to the SARI-AI backend's environment settings. [Render Shell access](https://render.com/docs/ssh)
-
-   ```sh
-   node -e 'const { DatabaseSync } = require("node:sqlite"); const db = new DatabaseSync(process.env.FREEAPI_DB_PATH, { readOnly: true }); console.log(db.prepare("SELECT value FROM settings WHERE key = ?").get("unified_api_key").value)'
-   ```
-
-5. In the SARI-AI web service, set `FREELLMAPI_RENDER_INTERNAL_ADDRESS` to the copied `hostname:port` and `FREELLMAPI_API_KEY` to the new unified key. Leave `FREELLMAPI_BASE_URL` unset for this setup. Set `FREELLMAPI_MODEL=auto` to use the gateway's fallback chain, or use the ID of a model your provider supports. Deploy the SARI-AI revision with private-network support. [Render private networking](https://render.com/docs/private-network)
-
-Open **Ask AI** and ask “Which product sold most?” A live answer displays **Live AI** next to the agent name. If you see **Local fallback**, check that the gateway is running, the key came from that instance, and the selected model is available. Keep both credentials in their respective service's Environment settings.
-
-The backend sends the submitted question and either the relevant store aggregates or a compact product catalogue. Analytics requests exclude customer names, raw transactions, and notebook notes from the attached store context. Use fictional data for the demo, including in the questions. FreeLLMAPI's maintainers describe it as a gateway for personal experimentation. Check the enabled provider's terms before sharing access to a hosted demo.
+The backend sends the submitted question and relevant store figures or product names to the configured provider. Use fictional data for the demo, including in the questions.
 
 Use the language menu to switch between English and Filipino. Product names, units, and catalog categories stay as entered.
 
