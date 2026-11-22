@@ -311,8 +311,8 @@ body { font-variant-numeric:tabular-nums; }
 .catalog-card { background: #fff; border: 1px solid #e0e8f2; border-radius: 18px; position: relative; min-width: 0; }
 .catalog-card > .product-photo { border-radius: 17px 17px 0 0; }
 .product-photo { display: grid; place-items: center; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; background-color: #e7eef9; }
-.seed-photo { background-image: url('/catalog-photos.webp'); background-repeat: no-repeat; background-size: 400% 200%; }
 .photo-initial { color: #345481; font-size: 2rem; font-weight: 750; }
+.catalog-credits { display: inline-block; margin-top: 12px; color: #4b6078; font-size: .8rem; text-decoration: underline; }
 .catalog-body { padding: 13px; }
 .catalog-product { display: flex; justify-content: space-between; gap: 9px; align-items: flex-start; }
 .catalog-product h2 { margin: 0; font-size: 1rem; line-height: 1.22; overflow-wrap: anywhere; }

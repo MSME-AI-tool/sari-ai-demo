@@ -104,6 +104,7 @@ export function Stock({ store, open }: PageProps) {
         </div></div>
       </article>)}</div>
       {!products.length && <Empty>{t('No products match your filters.', 'Walang item na tugma sa mga salaan.')}</Empty>}
+      <a className="catalog-credits" href="/photo-credits.html">{t('Demo photo credits', 'Mga pinagmulan ng demo na litrato')}</a>
     </section>
     <div className="stock-tools">
       <Panel title={t('Record with Suki', 'Magtala kasama si Suki')} action={<img className="suki-icon" src="/suki.svg" alt="" />}>

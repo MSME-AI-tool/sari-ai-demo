@@ -4,13 +4,23 @@ import type { Entry, Product, Store } from './data';
 import { expenseLabels, useLanguage } from './language';
 import { Empty, Panel } from './ui';
 
+const demoPhotos: Record<string, string> = {
+  'product-1': 'coffee',
+  'product-2': 'noodles',
+  'product-3': 'water',
+  'product-4': 'sardines',
+  'product-5': 'detergent',
+  'product-6': 'biscuits',
+  'product-7': 'shampoo',
+  'product-8': 'oil',
+};
+
 export function ProductPhoto({ product }: { product: Product }) {
-  const seed = /^product-([1-8])$/.exec(product.id);
-  const index = seed ? Number(seed[1]) - 1 : -1;
-  return product.photo ? <img className="product-photo" src={product.photo} alt="" loading="lazy" /> :
-    <span aria-hidden="true" className={`product-photo ${index >= 0 ? 'seed-photo' : 'photo-initial'}`}
-      style={index >= 0 ? { backgroundPosition: `${(index % 4) * 100 / 3}% ${index < 4 ? 0 : 100}%` } : undefined}>
-      {index < 0 && product.name.slice(0, 2).toUpperCase()}
+  const demoPhoto = demoPhotos[product.id];
+  const src = product.photo || (demoPhoto && `/catalog/${demoPhoto}.webp`);
+  return src ? <img className="product-photo" src={src} alt="" loading="lazy" decoding="async" /> :
+    <span aria-hidden="true" className="product-photo photo-initial">
+      {product.name.slice(0, 2).toUpperCase()}
     </span>;
 }
 
