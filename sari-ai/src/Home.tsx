@@ -6,17 +6,17 @@ import { StoreHealth, StoreInsights } from './StoreTools';
 import { useLanguage } from './language';
 
 function DailySales({ trend }: { trend: ReturnType<typeof analyze>['trend'] }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const peak = Math.max(10000, Math.ceil(Math.max(...trend.map(p => p.sales)) / 10000) * 10000);
   const coordinates = trend.map((p, i) => [8 + i * 584 / Math.max(1, trend.length - 1), 126 - 118 * p.sales / peak]);
   const last = coordinates[coordinates.length - 1];
   return <figure className="daily-sales"><figcaption>{t('Daily sales', 'Benta bawat araw')}</figcaption>
     <div className="line-plot"><div className="tick-labels"><span>{peso(peak)}</span><span>{peso(peak / 2)}</span><span>₱0</span></div>
-    <svg viewBox="0 0 600 134" preserveAspectRatio="none" role="img" aria-label={trend.map(p => weekday(p.day) + ' ' + peso(p.sales)).join(', ')}>
+    <svg viewBox="0 0 600 134" preserveAspectRatio="none" role="img" aria-label={trend.map(p => weekday(p.day, language) + ' ' + peso(p.sales)).join(', ')}>
       {[8,67,126].map(y => <line key={y} x1="0" x2="600" y1={y} y2={y} stroke="#dce1e6" />)}
       <polyline points={coordinates.map(point => point.join(',')).join(' ')} fill="none" stroke="#155ee8" strokeWidth="3" vectorEffect="non-scaling-stroke"/>
       <circle cx={last[0]} cy={last[1]} r="4.5" fill="#155ee8"/>
-    </svg></div><div className="day-labels">{trend.map(p => <span key={p.day}>{weekday(p.day)}</span>)}</div></figure>;
+    </svg></div><div className="day-labels">{trend.map(p => <span key={p.day}>{weekday(p.day, language)}</span>)}</div></figure>;
 }
 
 export default function Home({ store, open }: { store: Store; open: (entry: Entry) => void }) {
@@ -38,7 +38,7 @@ export default function Home({ store, open }: { store: Store; open: (entry: Entr
       <table><thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Product', 'Item')}</th><th>{t('Qty', 'Bilang')}</th><th>{t('Amount', 'Halaga')}</th></tr></thead>
         <tbody>{store.sales.slice(0, 4).map(s => {
           const items = store.items.filter(i => i.sale_id === s.id);
-          return <tr key={s.id}><td>{shortDate(s.day)}</td><td>{items.map(i => names.get(i.product_id)).join(', ')}</td><td>{add(items,i => i.quantity)}</td><td>{peso(s.total)}</td></tr>;
+          return <tr key={s.id}><td>{shortDate(s.day, language)}</td><td>{items.map(i => names.get(i.product_id)).join(', ')}</td><td>{add(items,i => i.quantity)}</td><td>{peso(s.total)}</td></tr>;
         })}</tbody></table>{!store.sales.length && <p>{t('No sales recorded yet.', 'Wala pang naitalang benta.')}</p>}</section>
       <section className="stock-watch"><h2>{t('Stock to watch', 'Stock na kailangang bantayan')}</h2>{watch ? <>
         <h3><i/>{watch.product.stock <= watch.product.threshold ? t('Low stock', 'Mababang stock') : t('Running low', 'Malapit maubos')} · {watch.product.name}</h3>

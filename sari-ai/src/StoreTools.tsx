@@ -49,6 +49,27 @@ export function StoreInsights({ store, expenses = false }: { store: Store; expen
   </Panel>;
 }
 
+export function StockInsights({ store }: { store: Store }) {
+  const { t } = useLanguage();
+  const windowStart = shiftDay(store.today, -6);
+  const movements = store.movements.filter(row => row.day >= windowStart && row.day <= store.today);
+  const categories = [
+    ['restock', 'Stock-in', 'Stock-in'], ['sale', 'Sales', 'Benta'], ['count', 'Counts', 'Mga bilang'],
+    ['waste', 'Wastage', 'Sira o tapon'], ['correction', 'Corrections', 'Mga pagwawasto'],
+  ];
+  const rows = categories.map(([kind, en, fil]) => {
+    const count = movements.filter(move => move.reason === kind).length;
+    return { label: t(en, fil), value: count, display: String(count) };
+  });
+  const low = store.products.filter(product => product.stock <= product.threshold);
+  return <Panel title={t('Stock activity', 'Mga galaw ng stock')} detail={t('Entries in the last 7 days', 'Mga tala sa huling 7 araw')}>
+    <p>{t(`${low.length} of ${store.products.length} products are at or below their stock threshold.`,
+      `${low.length} sa ${store.products.length} item ang umabot o bumaba sa minimum na stock.`)}</p>
+    {movements.length > 0 ? <Bars rows={rows} /> : <Empty>{t('No stock activity in this period.', 'Walang galaw ng stock sa panahong ito.')}</Empty>}
+    {low.length > 0 && <a className="evidence-link" href="#stock/low">{t('Review low stock', 'Suriin ang mababang stock')} →</a>}
+  </Panel>;
+}
+
 export function StockPlanner({ store, productId }: { store: Store; productId?: string }) {
   const { t } = useLanguage();
   const estimates = forecast(store);

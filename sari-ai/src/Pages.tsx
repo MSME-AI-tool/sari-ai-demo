@@ -4,7 +4,7 @@ import { add, api, forecast, ledger, peso, readStockNotes, runout, shiftDay, sho
 import type { AskReply, Entry, Product, Store } from './data';
 import { Empty, Icon, Panel } from './ui';
 import { expenseLabels, LanguageSelect, localError, useLanguage } from './language';
-import { ProductPhoto, StockPlanner, StoreInsights } from './StoreTools';
+import { ProductPhoto, StockInsights, StockPlanner, StoreInsights } from './StoreTools';
 
 import Notebook from './Notebook';
 
@@ -121,6 +121,7 @@ export function Stock({ store, open }: PageProps) {
       </Panel>
       <div id="stock-planner"><StockPlanner key={planner} store={store} productId={planner} /></div>
     </div>
+    <StockInsights store={store} />
     <div id="stock-history"><Panel title={t('Stock history', 'Stock history')}
       detail={active ? byId.get(active)?.name : t('Manual entries, adjustments, and sales', 'Mga tala, pagbabago, at benta')}
       action={<select aria-label={t('Filter stock history', 'Salain ang stock history')} value={active}
@@ -130,7 +131,7 @@ export function Stock({ store, open }: PageProps) {
       <div className="table-scroll"><table><thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Product', 'Item')}</th>
         <th>{t('Entry', 'Tala')}</th><th>{t('Change', 'Pagbabago')}</th><th>{t('Stock after', 'Natira')}</th><th>{t('Note', 'Detalye')}</th></tr></thead>
         <tbody>{movements.slice(0, 100).map(row => <tr key={row.id} id={'movement-' + row.id} className={selectedMove === row.id ? 'record-highlight' : ''}>
-          <td>{shortDate(row.day)}</td><td><strong>{byId.get(row.product_id)?.name}</strong></td>
+          <td>{shortDate(row.day, language)}</td><td><strong>{byId.get(row.product_id)?.name}</strong></td>
           <td>{t(reasons[row.reason] ?? row.reason, filipinoReasons[row.reason] ?? row.reason)}</td>
           <td>{row.change > 0 ? '+' : ''}{row.change}</td><td>{row.stock_after}</td><td>{row.note || '—'}</td>
         </tr>)}</tbody></table>{!movements.length && <Empty>{t('No stock movements yet.', 'Wala pang pagbabago sa stock.')}</Empty>}</div>
@@ -141,7 +142,7 @@ export function Stock({ store, open }: PageProps) {
 }
 
 export function Sales({ store, open }: PageProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [period, setPeriod] = useState('1');
   const [selected, setSelected] = useState<string | null>(null);
   useEffect(() => {
@@ -169,7 +170,7 @@ export function Sales({ store, open }: PageProps) {
       <Panel title={t('Record a sale with Suki', 'Itala ang benta kasama si Suki')}><Notebook open={open} store={store} area="sale" /></Panel>
       <StoreInsights store={store} />
     </div>
-    {sale && <div id="sale-details"><Panel title={t('Sale details', 'Detalye ng benta')} detail={shortDate(sale.day) + ' · ' + (sale.method === 'cash' ? t('Cash', 'Bayad agad') : sale.customer)}
+    {sale && <div id="sale-details"><Panel title={t('Sale details', 'Detalye ng benta')} detail={shortDate(sale.day, language) + ' · ' + (sale.method === 'cash' ? t('Cash', 'Bayad agad') : sale.customer)}
       action={<button className="button secondary" onClick={() => open({ kind: 'sale-correction', sale,
         lines: lines.map(item => ({ product_id: item.product_id, quantity: String(item.quantity), note: '' })) })}>
         {t('Correct sale', 'Iwasto ang benta')}</button>}>
@@ -185,7 +186,7 @@ export function Sales({ store, open }: PageProps) {
         <option value="14">{t('Last 14 days', 'Huling 14 araw')}</option><option value="all">{t('All dates', 'Lahat ng petsa')}</option></select>}>
       <div className="table-scroll"><table><thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Products', 'Mga item')}</th>
         <th>{t('Payment', 'Bayad')}</th><th>{t('Total', 'Kabuuan')}</th><th><span className="sr-only">{t('Details', 'Detalye')}</span></th></tr></thead>
-        <tbody>{sales.map(record => <tr key={record.id}><td>{shortDate(record.day)}</td>
+        <tbody>{sales.map(record => <tr key={record.id}><td>{shortDate(record.day, language)}</td>
           <td><strong>{store.items.filter(item => item.sale_id === record.id).map(item =>
             lookup.get(item.product_id) + ' × ' + item.quantity).join(', ')}</strong></td>
           <td>{record.method === 'cash' ? t('Cash', 'Bayad agad') : t('Credit', 'Utang')}</td><td>{peso(record.total)}</td>
@@ -197,7 +198,7 @@ export function Sales({ store, open }: PageProps) {
 }
 
 export function Expenses({ store, open }: PageProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [category, setCategory] = useState('');
   const [date, setDate] = useState('');
   const categories = [...new Set(store.expenses.map(expense => expense.category))].sort();
@@ -215,7 +216,7 @@ export function Expenses({ store, open }: PageProps) {
         <input type="date" aria-label={t('Expense date', 'Petsa ng gastos')} value={date} max={store.today} onChange={event => setDate(event.target.value)} /></div>}>
       <div className="table-scroll"><table><thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Description', 'Detalye')}</th>
         <th>{t('Category', 'Kategorya')}</th><th>{t('Amount', 'Halaga')}</th></tr></thead>
-        <tbody>{expenses.map(expense => <tr key={expense.id}><td>{shortDate(expense.day)}</td><td><strong>{expense.description}</strong></td>
+        <tbody>{expenses.map(expense => <tr key={expense.id}><td>{shortDate(expense.day, language)}</td><td><strong>{expense.description}</strong></td>
           <td>{t(expense.category, expenseLabels[expense.category] ?? expense.category)}</td><td>{peso(expense.amount)}</td></tr>)}</tbody></table>
         {!expenses.length && <Empty>{t('No expenses match these filters.', 'Walang gastos na tugma sa mga salaan.')}</Empty>}</div>
     </Panel>
@@ -223,7 +224,7 @@ export function Expenses({ store, open }: PageProps) {
 }
 
 export function Ledger({ store, open }: PageProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const customers = ledger(store);
   const history = [...store.sales.filter(sale => sale.method === 'credit').map(sale =>
     ({ ...sale, type: t('Credit sale', 'Benta sa utang'), amount: sale.total })),
@@ -244,7 +245,7 @@ export function Ledger({ store, open }: PageProps) {
       <Notebook store={store} open={open} area="payment" /></Panel></div>
     <Panel title={t('Ledger history', 'Mga tala ng utang at bayad')}><div className="table-scroll"><table>
       <thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Customer', 'Mamimili')}</th><th>{t('Entry', 'Tala')}</th><th>{t('Change', 'Pagbabago')}</th></tr></thead>
-      <tbody>{history.map(entry => <tr key={entry.id}><td>{shortDate(entry.day)}</td><td><strong>{entry.customer}</strong></td>
+      <tbody>{history.map(entry => <tr key={entry.id}><td>{shortDate(entry.day, language)}</td><td><strong>{entry.customer}</strong></td>
         <td>{entry.type}</td><td>{peso(entry.amount)}</td></tr>)}</tbody></table>
       {!history.length && <Empty>{t('No ledger entries yet.', 'Wala pang tala.')}</Empty>}</div></Panel>
   </>;

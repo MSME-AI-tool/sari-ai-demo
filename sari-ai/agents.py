@@ -11,7 +11,7 @@ AGENTS = {"recording", "insights", "forecast", "health"}
 EXPENSE_CATEGORIES = ("Transport", "Supplies", "Utilities", "Rent", "Wages", "Other")
 RECORD_COMMAND = re.compile(
     r"^(?:please\s+)?(?:log|record|add|mark|update|count|sold|bought|i sold|i bought|"
-    r"i spent|spent|gastos|i-restock|itago|itala|ilista|dagdag|nagdagdag|nabenta|binenta|repayment|bayad|nagbayad)\b|"
+    r"i spent|spent|gastos|i-restock|itago|itala|ilista|dagdag|nagdagdag|nabenta|binenta|utang ni|credit sale to|repayment|bayad|nagbayad)\b|"
     r"^(?:please\s+)?restock\s+\d",
     re.IGNORECASE,
 )
@@ -21,6 +21,7 @@ GUIDE_REQUEST = re.compile(r"^(?:please\s+)?(?:how\s+(?:do|can|should)\s+i|how t
 CREDIT_TOPIC = re.compile(r"\b(?:utang|unpaid|ledger|credit|repay\w*|bayad)\b", re.IGNORECASE)
 EXPENSE_TOPIC = re.compile(r"\b(?:expenses?|spend\w*|spent|gastos)\b", re.IGNORECASE)
 SALES_TOPIC = re.compile(r"\b(?:sales?|checkout|benta|cash|profit|tubo|transaksyon)\b", re.IGNORECASE)
+INVENTORY_TOPIC = re.compile(r"\b(?:in stock|on hand|inventory|stock levels?|natitira|natitirang stock|imbentaryo)\b", re.IGNORECASE)
 
 
 def app_guide(question, agent):
@@ -155,6 +156,10 @@ def insights(snapshot, length, question):
     products = {product["id"]: product["name"] for product in snapshot["products"]}
     ranked = sorted(units, key=lambda key: (-units[key], -revenue[key], products[key]))
     requested = matching_products(snapshot["products"], question)
+    inventory = requested[:5] or snapshot["products"][:5]
+    if INVENTORY_TOPIC.search(question):
+        for product in inventory:
+            report.append(fact("On hand · " + product["name"], f"{product['stock']} {product['unit']}"))
     relevant = dict.fromkeys(ranked[:5] + [p["id"] for p in requested[:5]])
     for key in relevant:
         report.append(fact(products[key], f"{units[key]} units sold · {peso(revenue[key])} sales"))
@@ -187,6 +192,9 @@ def insights(snapshot, length, question):
                     f"and {peso(deposits)} in repayments. Total sales were {peso(total)}, including {peso(total - cash_sales)} in new credit sales.")
     elif CREDIT_TOPIC.search(question):
         fallback = f"Customers still owed {peso(outstanding)} as of {day}. Check Ledger for individual balances and repayment history."
+    elif INVENTORY_TOPIC.search(question):
+        on_hand = ", ".join(f"{p['name']} ({p['stock']} {p['unit']})" for p in inventory)
+        fallback = f"Current stock: {on_hand}. Open Stock for the full catalog." if inventory else "There are no products in Stock yet."
     return report, fallback
 
 
@@ -413,11 +421,20 @@ def recording(snapshot, question, language="en", context="", receipt=False):
         return {"text": ("Suriin ang nabasang teksto. Ilagay ang eksaktong pangalan at bilang o gamitin ang manu-manong Stock-in."
                          if language == "fil" else "Check the extracted text, then enter exact item names and quantities or use manual Stock-in."),
                 "source": "records", "reason": status, "destination": "stock"}
-    prompt = question.casefold().strip()
-    revised_qty = re.fullmatch(r"(?:change (?:it|that) to|make (?:it|that)|palitan(?:\s+(?:ito|iyan|ng))?|gawing?)\s+(\d{1,7})(?:\s+na)?[.!]?", prompt)
+    typed = question.strip()
+    revised_qty = re.fullmatch(r"(?:change (?:it|that) to|make (?:it|that)|palitan(?:\s+(?:ito|iyan|ng))?|gawing?)\s+(\d{1,7})(?:\s+na)?[.!]?", typed, re.I)
     if revised_qty and context:
-        original = context.splitlines()[0].casefold().strip()
-        prompt = re.sub(r"\b\d+\b", revised_qty[1], original, count=1)
+        original = context.splitlines()[0].strip()
+        typed = re.sub(r"\b\d+\b", revised_qty[1], original, count=1)
+    prompt = typed.casefold()
+    credit = re.fullmatch(r"(?:utang ni|credit sale to)\s+([^:]{1,100}):\s*(\d{1,7})\s+(.+?)[.!]?", typed, re.I)
+    if credit:
+        customer, quantity, name = credit.groups()
+        matches = [key for key, product in catalogue.items() if product["name"].casefold() == name.casefold()]
+        if len(matches) == 1 and 1 <= int(quantity) <= 1_000_000:
+            message, draft = draft_for({"kind": "sale", "method": "credit", "customer": customer,
+                "lines": [{"product": matches[0], "quantity": int(quantity)}]}, catalogue, snapshot["today"], language)
+            return {"text": message, "source": "records", "draft": draft}
     filipino = re.fullmatch(r"(?:dagdag|nagdagdag)\s+(\d{1,7})\s+(?:na\s+)?(.+?)[.!]?", prompt)
     if filipino:
         quantity, name = filipino.groups()
@@ -504,6 +521,7 @@ def filipino_facts(facts):
     for item in facts:
         label = FIL_FACTS.get(item["label"], item["label"])
         for term, translated in (("Outstanding customer credit as of ", "Natitirang utang noong "),
+                                 ("On hand · ", "Natitirang stock · "),
                                  ("Sales change · ", "Pagbabago sa benta · "),
                                  ("Expense category · ", "Kategorya ng gastos · ")):
             if label.startswith(term):
@@ -540,6 +558,10 @@ def filipino_summary(snapshot, question, agent, facts, today):
         return f"{values['Estimated gross profit']} ang tinatayang kabuuang tubo bago ibawas ang gastos sa operasyon."
     if CREDIT_TOPIC.search(question):
         return f"{values['Outstanding customer credit as of ' + today]} pa ang utang. Buksan ang Utang para sa bawat balanse."
+    if INVENTORY_TOPIC.search(question):
+        items = [item["label"].removeprefix("On hand · ") + " (" + item["value"] + ")"
+                 for item in facts if item["label"].startswith("On hand · ")]
+        return "Natitirang stock: " + ", ".join(items) + ". Buksan ang Stock para sa buong listahan." if items else "Wala pang item sa Stock."
     if re.search(r"\b(?:cash|received|pera|natanggap)\b", question, re.I):
         return (f"{values['Cash received']} ang natanggap na pera, kasama ang {values['Repayments received in period']} "
                 f"na bayad sa utang. {values['Credit sales in period']} ang bagong benta sa utang.")
@@ -551,6 +573,10 @@ def ask(snapshot, question, length, selected, language="en", context=""):
     agent = choose_agent((context or question).casefold()) if selected == "auto" else selected
     if context and agent == "recording":
         return {"agent": agent, **recording(snapshot, question, language, context)}
+    if selected in {"auto", "forecast"} and re.search(r"\b(?:what[- ]if|paano kung|simulate|simulation)\b", question, re.I):
+        return {"agent": "forecast", "source": "guide", "destination": "stock/planner",
+                "text": ("Buksan ang planner para subukan ang ibang presyo o bagong item. Ilagay ang mga palagay para makita ang pagbabago sa benta at pera."
+                         if language == "fil" else "Open the planner to compare a different price or a new product. Enter your assumptions to see the sales and cash effects.")}
     if agent == "forecast" and re.search(r"\b(?:reorder|umorder|irestock|how much should i restock)\b", question, re.I):
         return {"agent": agent, "source": "guide", "destination": "stock/planner",
                 "text": ("Ang ibig mo bang malaman ay kung anong item ang mababa, o kung ilang piraso ang dapat orderin? "
@@ -584,6 +610,8 @@ def ask(snapshot, question, length, selected, language="en", context=""):
             destination = "expenses"
         elif CREDIT_TOPIC.search(question):
             destination = "ledger"
+        elif INVENTORY_TOPIC.search(question):
+            destination = "stock"
     if language == "fil":
         fallback = filipino_summary(snapshot, question, agent, facts, today)
         facts = filipino_facts(facts)

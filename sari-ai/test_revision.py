@@ -58,6 +58,13 @@ class RevisionTests(unittest.TestCase):
             reply = agents.ask(store.snapshot(), "Gawing 12", 7, "auto", "fil", context="Dagdag 24 na kape.")
         self.assertEqual(reply["draft"]["lines"][0]["quantity"], "12")
 
+    def test_filipino_credit_sale_draft_without_provider(self):
+        with patch("agents.llm.complete", return_value=(None, "unconfigured")):
+            reply = agents.ask(store.snapshot(), "Utang ni Aling Nena: 2 Instant noodles", 7, "auto", "fil")
+        self.assertEqual(reply["draft"]["method"], "credit")
+        self.assertEqual(reply["draft"]["customer"], "Aling Nena")
+        self.assertEqual(reply["draft"]["lines"][0]["quantity"], "2")
+
     def test_sales_correction_cannot_unwind_a_newer_count(self):
         product = "product-1"
         sale = store.add_sale(self.day, "cash", "", [{"product_id": product, "quantity": 2}])

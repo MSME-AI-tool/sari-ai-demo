@@ -49,9 +49,11 @@ export type AskReply = {
 const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 const dates = new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 const weekdays = new Intl.DateTimeFormat('en-PH', { weekday: 'short', timeZone: 'UTC' });
+const filipinoDates = new Intl.DateTimeFormat('fil-PH', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+const filipinoWeekdays = new Intl.DateTimeFormat('fil-PH', { weekday: 'short', timeZone: 'UTC' });
 export const peso = (centavos: number) => money.format(centavos / 100);
-export const shortDate = (day: string) => dates.format(new Date(day + 'T00:00:00Z'));
-export const weekday = (day: string) => weekdays.format(new Date(day + 'T00:00:00Z'));
+export const shortDate = (day: string, language = 'en') => (language === 'fil' ? filipinoDates : dates).format(new Date(day + 'T00:00:00Z'));
+export const weekday = (day: string, language = 'en') => (language === 'fil' ? filipinoWeekdays : weekdays).format(new Date(day + 'T00:00:00Z'));
 export function shiftDay(day: string, offset: number) {
   const date = new Date(day + 'T00:00:00Z');
   date.setUTCDate(date.getUTCDate() + offset);
