@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1045" height="230" viewBox="0 0 1045 230" role="img" aria-labelledby="title desc">
+  <title id="title">SARI-AI</title>
+  <desc id="desc">Editable light wordmark with a detached rising gold crossbar in each A. All spacing between paths is transparent.</desc>
+  <g fill="#F5F8F5" transform="translate(30 33)">
+    <path id="S" d="M151 39H125Q119 23 99 23H53Q28 23 28 45Q28 66 52 66H100Q152 66 152 113Q152 161 101 161H52Q8 161 1 122H27Q33 138 53 138H101Q127 138 127 115Q127 90 100 90H52Q3 90 3 46Q3 0 53 0H99Q143 0 151 39Z"/>
+    <g id="A-first" transform="translate(172)">
+      <path id="A-first-frame" d="M0 160L77 0H97L174 160H146L87 36L28 160Z"/>
+      <path id="A-first-accent" fill="#FFC000" d="M50 132L98 79L107 98L41 151Z"/>
+    </g>
+    <path id="R" transform="translate(372)" fill-rule="evenodd" d="M0 0H87Q143 0 143 48Q143 86 106 95L155 160H123L76 98H25V160H0ZM25 23V75H85Q118 75 118 49Q118 23 85 23Z"/>
+    <path id="I-first" d="M557 0H582V160H557Z"/>
+    <path id="hyphen" d="M621 74H712V95H621Z"/>
+    <g id="A-second" transform="translate(753)">
+      <path id="A-second-frame" d="M0 160L77 0H97L174 160H146L87 36L28 160Z"/>
+      <path id="A-second-accent" fill="#FFC000" d="M50 132L98 79L107 98L41 151Z"/>
+    </g>
+    <path id="I-final" d="M960 0H985V160H960Z"/>
+  </g>
+</svg>
