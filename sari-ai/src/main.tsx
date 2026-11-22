@@ -132,7 +132,7 @@ function App() {
         {!connected && <p role="status" className="notice warning">{t('Reconnect to save or refresh store records.', 'Kumonekta muli para mag-save o mag-refresh.')}</p>}
         {problem && <div role="alert" className="notice warning"><span>{localError(t, new Error(problem))}</span>
           <button className="text-link" onClick={() => void refresh()}>{t('Try again', 'Subukan muli')}</button></div>}
-        {controls && <div hidden={page !== 'ask'}><Ask open={open} /></div>}
+        {controls && <div hidden={page !== 'ask'}><Ask {...controls} /></div>}
         {content}
         {!controls && !problem && <p className="empty" role="status">{t('Loading Your Store…', 'Binubuksan ang tindahan…')}</p>}
       </main>

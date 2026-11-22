@@ -29,7 +29,11 @@ export default function Home({ store, open }: { store: Store; open: (entry: Entr
   const date = new Date(store.today + 'T12:00:00Z').toLocaleDateString(language === 'fil' ? 'fil-PH' : 'en-PH', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
   return <div className="overview">
     <header className="page-heading"><div><h1>{t('Store overview', 'Buod ng tindahan')}</h1><p>{date}</p></div>
-      <button className="button primary desktop-only" onClick={() => open({ kind: 'sale' })}><Icon name="plus" />{t('Record sale', 'Itala ang benta')}</button></header>
+      <button className="button primary" onClick={() => open({ kind: 'sale' })}><Icon name="plus" />{t('Record sale', 'Itala ang benta')}</button></header>
+    <nav className="home-record-links" aria-label={t('Store records', 'Mga tala ng tindahan')}>
+      <a className="button secondary" href="#expenses"><Icon name="expense" size={17} />{t('Expenses', 'Gastos')}</a>
+      <a className="button secondary" href="#ledger"><Icon name="ledger" size={17} />{t('Ledger', 'Utang')}</a>
+    </nav>
     <section className="summary-spread"><div className="day-total"><h2>{t('Today’s sales', 'Benta ngayong araw')}</h2><strong>{peso(day.sales)}</strong>
       <p>{delta === 0 ? t('Same as yesterday', 'Katulad ng kahapon') : peso(Math.abs(delta)) +
         (delta > 0 ? t(' above yesterday', ' na mas mataas kaysa kahapon') : t(' below yesterday', ' na mas mababa kaysa kahapon'))}</p></div>
@@ -47,8 +51,7 @@ export default function Home({ store, open }: { store: Store; open: (entry: Entr
         <div className="watch-footer"><span>{watch.product.stock} {t('on hand', 'natitira')}</span>
           <a href={'#stock/history/' + encodeURIComponent(watch.product.id)}>{t('View stock history', 'Tingnan ang stock history')}</a></div>
       </> : <p>{t('No products are running low.', 'Walang item na malapit maubos.')}</p>}
-      <div className="desktop-only"><Notebook open={open} store={store} /></div></section></div>
+      <Notebook open={open} store={store} /></section></div>
     <div className="stock-tools"><StoreInsights store={store} /><StoreHealth store={store} open={open} /></div>
-    <button className="button primary mobile-only full" onClick={() => open({ kind: 'sale' })}>{t('Record sale', 'Itala ang benta')}</button>
   </div>;
 }

@@ -17,10 +17,15 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def complete(instructions, context):
-    """Return model text and a status suitable for displaying with a fallback."""
+def credentials():
     base_url = os.getenv("FREELLMAPI_BASE_URL", "").strip().rstrip("/")
     key = os.getenv("FREELLMAPI_API_KEY", "").strip()
+    return base_url, key
+
+
+def complete(instructions, context):
+    """Return model text and a status suitable for displaying with a fallback."""
+    base_url, key = credentials()
     if not base_url or not key:
         return None, "unconfigured"
 

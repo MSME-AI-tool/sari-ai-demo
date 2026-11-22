@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { add, api, forecast, ledger, peso, readStockNotes, runout, shiftDay, shortDate, stockExample } from './data';
 import type { AskReply, Entry, Product, Store } from './data';
@@ -35,8 +35,8 @@ export function Stock({ store, open }: PageProps) {
         requestAnimationFrame(() => document.getElementById(moveId ? 'movement-' + moveId : 'stock-history')?.scrollIntoView({ block: 'start' }));
       } else if (section === 'low') {
         setFilter('low');
-      } else if (section === 'planner') {
-        requestAnimationFrame(() => document.getElementById('stock-planner')?.scrollIntoView({ block: 'start' }));
+      } else if (section === 'planner' || section === 'record') {
+        requestAnimationFrame(() => document.getElementById('stock-' + section)?.scrollIntoView({ block: 'start' }));
       }
     }
     followStockLink();
@@ -68,6 +68,11 @@ export function Stock({ store, open }: PageProps) {
         <Icon name="plus" size={17} /> {t('Add product', 'Magdagdag ng item')}</button>
         <button className="button primary" onClick={() => open({ kind: 'stock' })}>{t('Log stock', 'Itala ang stock')}</button></div>
     </header>
+    <nav className="stock-shortcuts" aria-label={t('Stock tools', 'Mga gamit sa stock')}>
+      <a className="button secondary" href="#stock/record">{t('Record with Suki', 'Magtala kasama si Suki')}</a>
+      <a className="button secondary" href="#stock/planner">{t('Restock planner', 'Plano sa dagdag na stock')}</a>
+      <a className="button secondary" href="#stock/history">{t('Stock history', 'Stock history')}</a>
+    </nav>
     <section className="stock-catalog" aria-label={t('Product catalog', 'Listahan ng mga item')}>
       <div className="catalog-controls">
         <label className="search-field"><Icon name="search" size={19} /><input value={query}
@@ -107,7 +112,7 @@ export function Stock({ store, open }: PageProps) {
       <a className="catalog-credits" href="/photo-credits.html">{t('Demo photo credits', 'Mga pinagmulan ng demo na litrato')}</a>
     </section>
     <div className="stock-tools">
-      <Panel title={t('Record with Suki', 'Magtala kasama si Suki')} action={<img className="suki-icon" src="/suki.svg" alt="" />}>
+      <div id="stock-record"><Panel title={t('Record with Suki', 'Magtala kasama si Suki')} action={<img className="suki-icon" src="/suki.svg" alt="" />}>
         <Notebook open={open} store={store} />
         <details className="batch-import"><summary>{t('Paste multiple notebook rows', 'Mag-paste ng maraming linya')}</summary>
           <form className="notebook" onSubmit={review}>
@@ -119,7 +124,7 @@ export function Stock({ store, open }: PageProps) {
             {error && <p className="form-error" role="alert">{error}</p>}
             <button className="button primary">{t('Review stock entries', 'Suriin ang mga tala')} <Icon name="arrow" size={17} /></button>
           </form></details>
-      </Panel>
+      </Panel></div>
       <div id="stock-planner"><StockPlanner key={planner} store={store} productId={planner} /></div>
     </div>
     <StockInsights store={store} />
@@ -252,14 +257,19 @@ export function Ledger({ store, open }: PageProps) {
   </>;
 }
 
-export function Ask({ open }: Pick<PageProps, 'open'>) {
+export function Ask({ open, store }: PageProps) {
   const { language, t } = useLanguage();
   const [message, setMessage] = useState('');
   const [period, setPeriod] = useState(7);
   const [thread, setThread] = useState<{ question: string; answer: AskReply; recordContext: string }[]>([]);
   const [pending, setPending] = useState('');
   const [error, setError] = useState('');
+  const conversation = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (conversation.current) conversation.current.scrollTop = conversation.current.scrollHeight;
+  }, [thread, pending]);
   const examples = [
+    t('What is my stock right now?', 'Ano ang stock ko ngayon?'),
     t('Why was cash lower than sales?', 'Bakit mas mababa ang natanggap na pera kaysa sa benta?'),
     t('What should I reorder?', 'Ano ang kailangan kong irestock?'),
     t('How do I record a repayment?', 'Paano magtala ng bayad sa utang?'),
@@ -288,18 +298,26 @@ export function Ask({ open }: Pick<PageProps, 'open'>) {
     <header className="page-heading"><div><h1>{t('Ask Suki', 'Tanungin si Suki')}</h1>
       <p>{t('Ask about store figures or get help with a task.', 'Magtanong tungkol sa mga tala o humingi ng tulong sa gawain.')}</p></div></header>
     <Panel title={t('Your conversation', 'Pag-uusap')} action={<img className="suki-icon" src="/suki.svg" alt="" />}>
+      {store.ai_configured === false && <p className="notice" role="status">{t(
+        'Live AI is disconnected. Suki can still check store records, guide you through the app, and prepare common drafts.',
+        'Hindi nakakonekta ang Live AI. Maaari pa ring sumuri si Suki ng mga tala, gumabay sa app, at gumawa ng mga karaniwang draft.',
+      )}</p>}
       <div className="ask-controls"><label>{t('Reporting period', 'Saklaw ng ulat')}
         <select value={period} disabled={!!pending} onChange={event => setPeriod(Number(event.target.value))}>
           <option value={1}>{t('Today', 'Ngayon')}</option><option value={7}>{t('Last 7 days', 'Huling 7 araw')}</option>
           <option value={14}>{t('Last 14 days', 'Huling 14 araw')}</option></select></label></div>
       <div className="suggestions">{examples.map(question => <button type="button" key={question}
         className="button secondary" disabled={!!pending} onClick={() => void reply(question, true)}>{question}</button>)}</div>
-      <div className="thread" aria-live="polite">
+      <div className="thread" ref={conversation} aria-live="polite" aria-label={t('Conversation messages', 'Mga mensahe')} tabIndex={0}>
         {thread.map(({ question, answer }, index) => <div key={index}><div className="question">{question}</div>
           <div className="answer"><img className="suki-icon" src="/suki.svg" alt="" /><div>
             <p className="answer-source"><strong>Suki</strong> · {answer.source === 'external' ? t('Live AI', 'Live AI') :
               answer.source === 'guide' ? t('App guide', 'Gabay sa app') : t('Store records', 'Mga tala ng tindahan')}</p>
             <p className="answer-text">{answer.text}</p>
+            {store.ai_configured !== false && answer.reason && <p className="answer-status">{t(
+              'Live AI didn’t respond. This reply used the built-in assistant.',
+              'Hindi sumagot ang Live AI. Galing ang sagot na ito sa built-in na assistant.',
+            )}</p>}
             {answer.draft && <button className="text-link" onClick={() => open({ ...answer.draft!, original: question, draftSource: answer.source })}>
               {t('Review draft', 'Suriin ang draft')} <Icon name="arrow" size={17} /></button>}
             {answer.destination && <a className="evidence-link" href={'#' + answer.destination}>{destinations[answer.destination]} →</a>}
@@ -330,6 +348,7 @@ export function More() {
       <a href="#expenses"><strong>{t('Expenses', 'Gastos')}</strong><Icon name="chevron" size={18} /></a>
       <a href="#ledger"><strong>{t('Ledger', 'Utang')}</strong><Icon name="chevron" size={18} /></a>
       <a href="#stock/history"><strong>Stock history</strong><Icon name="chevron" size={18} /></a>
+      <a href="#stock/planner"><strong>{t('Restock planner', 'Plano sa dagdag na stock')}</strong><Icon name="chevron" size={18} /></a>
     </div></Panel>
   </>;
 }

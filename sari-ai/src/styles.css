@@ -279,7 +279,7 @@ body { font-variant-numeric:tabular-nums; }
 .action-group { flex-wrap:wrap; }
 @media(max-width:840px) {
  .home-topbar { display:flex; }
- .topbar .quick-sale,.desktop-only,.recent { display:none; }
+ .topbar .quick-sale { display:none; }
  .mobile-only { display:inline-flex; }
  .bottom-nav .nav-link.active { background:transparent; color:#145cdf; }
  .overview { gap:16px; }
@@ -298,6 +298,15 @@ body { font-variant-numeric:tabular-nums; }
  .top-actions { margin-left:auto; }
  .stock-grid { grid-template-columns:minmax(0,1fr); }
  .watch-footer { margin:0; }
+ .recent { order: 2; max-width: 100%; overflow-x: auto; }
+}
+.home-record-links, .stock-shortcuts { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-record-links { display: none; }
+.stock-shortcuts { margin-bottom: 12px; }
+@media (max-width: 840px) {
+ .home-record-links { display: flex; }
+ .thread { max-height: 52dvh; overflow-y: auto; overscroll-behavior-y: contain; }
+ .ask-form input { min-width: 0; font-size: 1rem; }
 }
 /* Stock catalog and in-context store tools */
 .stock-catalog { margin: 0 0 26px; }

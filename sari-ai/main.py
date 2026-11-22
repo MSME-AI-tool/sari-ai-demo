@@ -8,6 +8,7 @@ from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIServer, make_server
 
 import agents
+import llm
 import store
 
 
@@ -162,7 +163,7 @@ def application(environ, start):
         if method in ("GET", "HEAD") and path == API + "health":
             return json_output(start, "200 OK", {"status": "ok"}, head)
         if method in ("GET", "HEAD") and path == API + "store":
-            return json_output(start, "200 OK", store.snapshot(), head)
+            return json_output(start, "200 OK", {**store.snapshot(), "ai_configured": all(llm.credentials())}, head)
         if method == "POST" and (path in WRITES or path == API + "ask"):
             if environ.get("CONTENT_TYPE", "").split(";")[0].strip().lower() != "application/json":
                 return json_output(start, "415 Unsupported Media Type", {"detail": "Send the record as JSON."})

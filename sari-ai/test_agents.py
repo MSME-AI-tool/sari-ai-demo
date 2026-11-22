@@ -50,6 +50,34 @@ class AssistantTests(unittest.TestCase):
         self.assertEqual(answer['draft']['lines'][0]['product_id'], 'coffee')
         self.assertEqual(answer['draft']['lines'][0]['quantity'], '24')
 
+    def test_stock_questions_use_current_counts(self):
+        for question in ('Ano yung stock ko right now', 'What is my stock right now?', 'Ilang kape ang natitira?'):
+            for language in ('en', 'fil'):
+                with self.subTest(question=question, language=language):
+                    answer = agents.ask(self.snapshot, question, 7, 'auto', language)
+                    self.assertEqual(answer['destination'], 'stock')
+                    self.assertIn('Coffee sachets', answer['text'])
+                    self.assertIn('4 sachet', answer['text'])
+        self.complete.assert_not_called()
+
+    def test_stock_addition_drafts_and_clarifies_units(self):
+        original = 'Dagdagan mo ng 2 pack yung coffee sa stock ko'
+        ambiguous = agents.ask(self.snapshot, original, 7, 'auto', 'fil')
+        self.assertTrue(ambiguous['clarification'])
+        self.assertIn('sachet', ambiguous['text'])
+        self.assertNotIn('draft', ambiguous)
+        for question, context, quantity in (
+            ('Add 2 coffee in my stock', '', '2'), ('20 sachets', original, '20'),
+        ):
+            with self.subTest(question=question):
+                answer = agents.ask(self.snapshot, question, 7, 'auto', 'fil', context)
+                self.assertEqual(answer['draft']['reason'], 'restock')
+                self.assertEqual(answer['draft']['lines'][0]['quantity'], quantity)
+        new_question = agents.ask(self.snapshot, 'Ano yung stock ko right now', 7, 'auto', 'fil', original)
+        self.assertEqual(new_question['destination'], 'stock')
+        self.assertIn('4 sachet', new_question['text'])
+        self.complete.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

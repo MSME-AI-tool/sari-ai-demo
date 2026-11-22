@@ -10,7 +10,7 @@ export type Expense = { id: string; day: string; category: string; description: 
 export type Payment = { id: string; day: string; customer: string; amount: number };
 export type Store = {
   today: string; products: Product[]; sales: Sale[]; items: SaleItem[]; movements: Movement[];
-  expenses: Expense[]; payments: Payment[];
+  expenses: Expense[]; payments: Payment[]; ai_configured?: boolean;
 };
 export type EntryKind = 'sale' | 'product' | 'stock' | 'expense' | 'payment' | 'sale-correction' | 'product-details';
 export type Line = { product_id: string; quantity: string; note: string; supplier_cost?: string };
