@@ -1,4 +1,4 @@
-"""Check the four deployed Ask AI routes without saving any store records."""
+"""Check the four deployed Ask Sari routes without saving any store records."""
 import argparse
 import json
 import sys

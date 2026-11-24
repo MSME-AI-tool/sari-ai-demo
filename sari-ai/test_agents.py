@@ -78,6 +78,24 @@ class AssistantTests(unittest.TestCase):
         self.assertIn('4 sachet', new_question['text'])
         self.complete.assert_not_called()
 
+    def test_restock_question_explains_records_without_posting(self):
+        answer = agents.ask(self.snapshot, 'Ano ang dapat kong i-restock?', 7, 'auto', 'fil')
+        self.assertEqual((answer['agent'], answer['source']), ('forecast', 'records'))
+        self.assertIn('Coffee sachets', answer['text'])
+        self.assertIn('₱3.00', str(answer['facts']))
+        self.assertNotIn('draft', answer)
+        self.complete.assert_not_called()
+
+    def test_weather_question_requires_weather_history(self):
+        answer = agents.ask(self.snapshot, 'Do noodles sell more when it rains?', 7, 'auto')
+        self.assertIn('weather', answer['text'].lower())
+        self.assertIn('history', answer['text'].lower())
+        self.complete.assert_not_called()
+
+    def test_quantity_question_still_opens_the_planner(self):
+        answer = agents.ask(self.snapshot, 'How many coffee sachets should I reorder?', 7, 'auto')
+        self.assertEqual(answer['destination'], 'stock/planner')
+
 
 if __name__ == '__main__':
     unittest.main()

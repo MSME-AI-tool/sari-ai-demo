@@ -94,7 +94,7 @@ export default function Notebook({ open, store, area = 'stock' }: {
   return <form className="note-entry capture-form" onSubmit={review}>
     <label>{mode === 'receipt' ? t('Read from receipt', 'Nabasa sa resibo') : mode === 'product'
       ? t('Read from product label', 'Nabasa sa label ng item') :
-      question ? t('Add the missing detail', 'Idagdag ang kulang na detalye') : t('Describe an entry to Suki', 'Ilarawan kay Suki ang itatala')}
+      question ? t('Add the missing detail', 'Idagdag ang kulang na detalye') : t('Describe an entry to Sari', 'Ilarawan kay Sari ang itatala')}
       <textarea rows={mode === 'note' ? 2 : 5} value={note} onChange={event => setNote(event.target.value)}
         placeholder={examples[area]} maxLength={mode === 'note' ? 500 : 4000} required disabled={pending} /></label>
     <div className="action-group capture-actions">

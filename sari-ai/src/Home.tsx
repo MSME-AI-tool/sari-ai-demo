@@ -49,7 +49,7 @@ export default function Home({ store, open }: { store: Store; open: (entry: Entr
         })}</tbody></table>{!store.sales.length && <p>{t('No sales recorded yet.', 'Wala pang naitalang benta.')}</p>}</section>
       <section className="stock-watch"><h2>{t('Stock to watch', 'Stock na kailangang bantayan')}</h2>{watch ? <>
         <h3><i/>{watch.product.stock <= watch.product.threshold ? t('Low stock', 'Mababang stock') : t('Running low', 'Malapit maubos')} · {watch.product.name}</h3>
-        <div className="suki-byline"><img src="/suki.svg" alt=""/><div><strong>{t('Suki’s estimate', 'Tantiya ni Suki')}</strong>
+        <div className="sari-byline"><img src="/sari.svg" alt=""/><div><strong>{t('Sari’s estimate', 'Tantiya ni Sari')}</strong>
           <p>{runout(watch.days, language)}{watch.daily ? ' · ' + watch.daily.toFixed(1) + t(' units/day', ' bawat araw') : ''}</p></div></div>
         <div className="watch-footer"><span>{watch.product.stock} {t('on hand', 'natitira')}</span>
           <a href={'#stock/history/' + encodeURIComponent(watch.product.id)}>{t('View stock history', 'Tingnan ang stock history')}</a></div>

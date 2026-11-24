@@ -15,7 +15,7 @@ const pages = [
   { id: 'home', label: 'Home', icon: 'home' },
   { id: 'sales', label: 'Sales', icon: 'sales' },
   { id: 'stock', label: 'Stock', icon: 'stock' },
-  { id: 'ask', label: 'Ask AI', icon: 'ai' },
+  { id: 'ask', label: 'Ask Sari', icon: 'ai' },
   { id: 'more', label: 'More', icon: 'more' },
 ] as const;
 const records = [
@@ -25,7 +25,7 @@ const records = [
 const allPages = [...pages, ...records];
 type Page = typeof allPages[number]['id'];
 const filipinoPages: Record<Page, string> = {
-  home: 'Tindahan', sales: 'Benta', stock: 'Stock', ask: 'Tanungin si Suki', more: 'Iba pa', expenses: 'Gastos', ledger: 'Utang',
+  home: 'Tindahan', sales: 'Benta', stock: 'Stock', ask: 'Tanungin si Sari', more: 'Iba pa', expenses: 'Gastos', ledger: 'Utang',
 };
 
 function readPage(): Page {
@@ -103,7 +103,7 @@ function App() {
       document.getElementById('content')?.focus();
     }}>{t('Skip to content', 'Lumaktaw sa nilalaman')}</a>
     <aside className="sidebar">
-      <a className="brand" href="#home"><img className="shop-mark" src="/suki.svg" alt="" /><img src="/wordmark.svg" alt="SARI-AI" /></a>
+      <a className="brand" href="#home"><img className="shop-mark" src="/sari.svg" alt="" /><img src="/wordmark.svg" alt="SARI-AI" /></a>
       <div className="store-identity">
         <span><strong>{t('Your Store', 'Ang Tindahan Mo')}</strong></span></div>
       <nav className="side-nav" aria-label={t('Main navigation', 'Pangunahing menu')}>
@@ -129,6 +129,8 @@ function App() {
         </div>
       </header>
       <main id="content" tabIndex={-1} className="content">
+        <p className="panel-footnote">{t('Shared demo · fictional starting records. Changes are visible to other visitors.',
+          'Shared demo · kathang-isip ang panimulang mga tala. Makikita ng ibang bisita ang mga pagbabago.')}</p>
         {!connected && <p role="status" className="notice warning">{t('Reconnect to save or refresh store records.', 'Kumonekta muli para mag-save o mag-refresh.')}</p>}
         {problem && <div role="alert" className="notice warning"><span>{localError(t, new Error(problem))}</span>
           <button className="text-link" onClick={() => void refresh()}>{t('Try again', 'Subukan muli')}</button></div>}

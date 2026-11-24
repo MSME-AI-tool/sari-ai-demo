@@ -69,7 +69,7 @@ export function Stock({ store, open }: PageProps) {
         <button className="button primary" onClick={() => open({ kind: 'stock' })}>{t('Log stock', 'Itala ang stock')}</button></div>
     </header>
     <nav className="stock-shortcuts" aria-label={t('Stock tools', 'Mga gamit sa stock')}>
-      <a className="button secondary" href="#stock/record">{t('Record with Suki', 'Magtala kasama si Suki')}</a>
+      <a className="button secondary" href="#stock/record">{t('Record with Sari', 'Magtala kasama si Sari')}</a>
       <a className="button secondary" href="#stock/planner">{t('Restock planner', 'Plano sa dagdag na stock')}</a>
       <a className="button secondary" href="#stock/history">{t('Stock history', 'Stock history')}</a>
     </nav>
@@ -112,7 +112,7 @@ export function Stock({ store, open }: PageProps) {
       <a className="catalog-credits" href="/photo-credits.html">{t('Demo photo credits', 'Mga pinagmulan ng demo na litrato')}</a>
     </section>
     <div className="stock-tools">
-      <div id="stock-record"><Panel title={t('Record with Suki', 'Magtala kasama si Suki')} action={<img className="suki-icon" src="/suki.svg" alt="" />}>
+      <div id="stock-record"><Panel title={t('Record with Sari', 'Magtala kasama si Sari')} action={<img className="sari-icon" src="/sari.svg" alt="" />}>
         <Notebook open={open} store={store} />
         <details className="batch-import"><summary>{t('Paste multiple notebook rows', 'Mag-paste ng maraming linya')}</summary>
           <form className="notebook" onSubmit={review}>
@@ -173,7 +173,7 @@ export function Sales({ store, open }: PageProps) {
       <p>{t('Record a checkout and review what sold.', 'Itala ang benta at suriin ang mga nabenta.')}</p></div>
       <button className="button primary" onClick={() => open({ kind: 'sale' })}><Icon name="plus" size={18} /> {t('Record sale', 'Itala ang benta')}</button></header>
     <div className="stock-tools">
-      <Panel title={t('Record a sale with Suki', 'Itala ang benta kasama si Suki')}><Notebook open={open} store={store} area="sale" /></Panel>
+      <Panel title={t('Record a sale with Sari', 'Itala ang benta kasama si Sari')}><Notebook open={open} store={store} area="sale" /></Panel>
       <StoreInsights store={store} />
     </div>
     {sale && <div id="sale-details"><Panel title={t('Sale details', 'Detalye ng benta')} detail={shortDate(sale.day, language) + ' · ' + (sale.method === 'cash' ? t('Cash', 'Bayad agad') : sale.customer)}
@@ -213,7 +213,7 @@ export function Expenses({ store, open }: PageProps) {
     <header className="page-heading"><div><h1>{t('Expenses', 'Gastos')}</h1>
       <p>{t('Record and review operating costs.', 'Itala at suriin ang gastos sa operasyon.')}</p></div>
       <button className="button primary" onClick={() => open({ kind: 'expense' })}><Icon name="plus" size={18} /> {t('Log expense', 'Itala ang gastos')}</button></header>
-    <div className="stock-tools"><Panel title={t('Record an expense with Suki', 'Itala ang gastos kasama si Suki')}>
+    <div className="stock-tools"><Panel title={t('Record an expense with Sari', 'Itala ang gastos kasama si Sari')}>
       <Notebook open={open} store={store} area="expense" /></Panel><StoreInsights store={store} expenses /></div>
     <Panel title={t('Operating expenses', 'Gastos sa operasyon')} detail={peso(add(expenses, expense => expense.amount)) + ' · ' + expenses.length}
       action={<div className="action-group"><select aria-label={t('Expense category', 'Kategorya ng gastos')} value={category}
@@ -247,7 +247,7 @@ export function Ledger({ store, open }: PageProps) {
           ? <button className="text-link" onClick={() => open({ kind: 'payment', customer: name })}>{t('Record payment', 'Itala ang bayad')}</button>
           : <span>{t('Paid', 'Bayad na')}</span>}
       </div>)}</div> : <Empty>{t('No customer balances yet.', 'Wala pang utang.')}</Empty>}
-    </Panel><Panel title={t('Record a repayment with Suki', 'Itala ang bayad kasama si Suki')}>
+    </Panel><Panel title={t('Record a repayment with Sari', 'Itala ang bayad kasama si Sari')}>
       <Notebook store={store} open={open} area="payment" /></Panel></div>
     <Panel title={t('Ledger history', 'Mga tala ng utang at bayad')}><div className="table-scroll"><table>
       <thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Customer', 'Mamimili')}</th><th>{t('Entry', 'Tala')}</th><th>{t('Change', 'Pagbabago')}</th></tr></thead>
@@ -271,7 +271,7 @@ export function Ask({ open, store }: PageProps) {
   const examples = [
     t('What is my stock right now?', 'Ano ang stock ko ngayon?'),
     t('Why was cash lower than sales?', 'Bakit mas mababa ang natanggap na pera kaysa sa benta?'),
-    t('What should I reorder?', 'Ano ang kailangan kong irestock?'),
+    t('What should I restock next?', 'Ano ang dapat kong i-restock?'),
     t('How do I record a repayment?', 'Paano magtala ng bayad sa utang?'),
   ];
   const destinations = {
@@ -295,12 +295,12 @@ export function Ask({ open, store }: PageProps) {
     finally { setPending(''); }
   }
   return <>
-    <header className="page-heading"><div><h1>{t('Ask Suki', 'Tanungin si Suki')}</h1>
+    <header className="page-heading"><div><h1>{t('Ask Sari', 'Tanungin si Sari')}</h1>
       <p>{t('Ask about store figures or get help with a task.', 'Magtanong tungkol sa mga tala o humingi ng tulong sa gawain.')}</p></div></header>
-    <Panel title={t('Your conversation', 'Pag-uusap')} action={<img className="suki-icon" src="/suki.svg" alt="" />}>
+    <Panel title={t('Your conversation', 'Pag-uusap')} action={<img className="sari-icon" src="/sari.svg" alt="" />}>
       {store.ai_configured === false && <p className="notice" role="status">{t(
-        'Live AI is disconnected. Suki can still check store records, guide you through the app, and prepare common drafts.',
-        'Hindi nakakonekta ang Live AI. Maaari pa ring sumuri si Suki ng mga tala, gumabay sa app, at gumawa ng mga karaniwang draft.',
+        'Live AI is disconnected. Sari can still check store records, guide you through the app, and prepare common drafts.',
+        'Hindi nakakonekta ang Live AI. Maaari pa ring sumuri si Sari ng mga tala, gumabay sa app, at gumawa ng mga karaniwang draft.',
       )}</p>}
       <div className="ask-controls"><label>{t('Reporting period', 'Saklaw ng ulat')}
         <select value={period} disabled={!!pending} onChange={event => setPeriod(Number(event.target.value))}>
@@ -310,8 +310,8 @@ export function Ask({ open, store }: PageProps) {
         className="button secondary" disabled={!!pending} onClick={() => void reply(question, true)}>{question}</button>)}</div>
       <div className="thread" ref={conversation} aria-live="polite" aria-label={t('Conversation messages', 'Mga mensahe')} tabIndex={0}>
         {thread.map(({ question, answer }, index) => <div key={index}><div className="question">{question}</div>
-          <div className="answer"><img className="suki-icon" src="/suki.svg" alt="" /><div>
-            <p className="answer-source"><strong>Suki</strong> · {answer.source === 'external' ? t('Live AI', 'Live AI') :
+          <div className="answer"><img className="sari-icon" src="/sari.svg" alt="" /><div>
+            <p className="answer-source"><strong>Sari</strong> · {answer.source === 'external' ? t('Live AI', 'Live AI') :
               answer.source === 'guide' ? t('App guide', 'Gabay sa app') : t('Store records', 'Mga tala ng tindahan')}</p>
             <p className="answer-text">{answer.text}</p>
             {store.ai_configured !== false && answer.reason && <p className="answer-status">{t(
@@ -321,8 +321,13 @@ export function Ask({ open, store }: PageProps) {
             {answer.draft && <button className="text-link" onClick={() => open({ ...answer.draft!, original: question, draftSource: answer.source })}>
               {t('Review draft', 'Suriin ang draft')} <Icon name="arrow" size={17} /></button>}
             {answer.destination && <a className="evidence-link" href={'#' + answer.destination}>{destinations[answer.destination]} →</a>}
-            {!!answer.facts?.length && <details className="answer-evidence"><summary>{t('View store figures', 'Tingnan ang mga bilang')}</summary>
+            {!!answer.facts?.length && <details className="answer-evidence" open={answer.agent === 'forecast' && answer.source === 'records'}><summary>{t('View store figures', 'Tingnan ang mga bilang')}</summary>
               <dl>{answer.facts.map(({ label, value }, i) => <div key={i}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></details>}
+            {answer.agent === 'forecast' && answer.source === 'records' && <p>
+              <a href="#sales">{t('Review sales', 'Suriin ang benta')}</a> ·{' '}
+              <a href="#stock/history">{t('Check stock movements', 'Suriin ang galaw ng stock')}</a> ·{' '}
+              <a href="#ledger">{t('Review unpaid credit', 'Suriin ang mga utang')}</a>
+            </p>}
           </div></div></div>)}
         {pending && <div><div className="question">{pending}</div><p role="status">{t('Preparing a response…', 'Inihahanda ang sagot…')}</p></div>}
       </div>

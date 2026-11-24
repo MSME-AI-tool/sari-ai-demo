@@ -107,8 +107,8 @@ export default function EntryDialog({ entry, store, close, saved }: {
         aria-label={t('Close', 'Isara')} onClick={close} disabled={busy}><Icon name="close" /></button></header>
       <div className="dialog-fields">
         {entry.original && <div className="draft-header"><small>{t('Original entry', 'Orihinal na tala')}</small>
-          <blockquote>{entry.original}</blockquote><div className="suki-byline"><img src="/suki.svg" alt="" />
-            <strong>{t('Suki’s draft', 'Draft ni Suki')}</strong></div></div>}
+          <blockquote>{entry.original}</blockquote><div className="sari-byline"><img src="/sari.svg" alt="" />
+            <strong>{t('Sari’s draft', 'Draft ni Sari')}</strong></div></div>}
         {isCorrection && <p>{t('Correct the items or quantities. The original payment method, date, and customer apply.',
           'Iwasto ang item o bilang. Gagamitin ang orihinal na paraan ng bayad, petsa, at mamimili.')}</p>}
         {entry.kind !== 'product-details' && !isCorrection && <div className="field-grid">

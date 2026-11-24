@@ -252,7 +252,7 @@ body { font-variant-numeric:tabular-nums; }
 .summary-spread { display:grid; grid-template-columns:minmax(180px,.75fr) minmax(0,1.5fr); grid-template-areas:"sales chart" "expenses chart"; column-gap:36px; }
 .day-total { grid-area:sales; }
 .day-total > strong { display:block; margin:8px 0; font-size:clamp(2rem,4vw,3.9rem); line-height:1.1; letter-spacing:-.05em; }
-.day-total p,.suki-byline p { color:var(--muted); line-height:1.5; }
+.day-total p,.sari-byline p { color:var(--muted); line-height:1.5; }
 .spending { grid-area:expenses; align-self:end; display:flex; align-items:center; justify-content:space-between; gap:10px; border-top:1px solid var(--line); padding:14px 0; }
 .daily-sales { grid-area:chart; border-left:1px solid var(--line); padding-left:30px; margin:0; min-width:0; }
 .daily-sales figcaption { font-size:1.12rem; font-weight:650; margin-bottom:14px; }
@@ -267,13 +267,13 @@ body { font-variant-numeric:tabular-nums; }
 .stock-watch { border-left:1px solid var(--line); padding-left:24px; }
 .stock-watch h3 { font-size:1rem; margin:15px 0; }
 .stock-watch h3 i { display:inline-block; width:9px; height:9px; background:#cc850c; border-radius:50%; margin-right:5px; }
-.suki-byline { display:flex; gap:12px; align-items:center; margin:10px 0; }
-.suki-byline img,.suki-icon { width:44px; height:44px; flex:none; }
+.sari-byline { display:flex; gap:12px; align-items:center; margin:10px 0; }
+.sari-byline img,.sari-icon { width:44px; height:44px; flex:none; }
 .note-entry { border-top:1px solid var(--line); padding-top:16px; display:grid; gap:8px; justify-items:start; }
 .note-entry label { width:100%; }
 .note-entry input,.draft-header blockquote { font-size:1rem; color:var(--ink); border:0; border-bottom:1px solid #a6b4c8; background:transparent; border-radius:0; padding:10px 2px; }
 .draft-header blockquote { white-space:pre-wrap; margin:0 0 12px; }
-.suki-byline small { color:var(--muted); }
+.sari-byline small { color:var(--muted); }
 .batch-import { margin-top:16px; border-top:1px solid var(--line); padding-top:12px; }
 .batch-import summary { cursor:pointer; font-weight:600; margin-bottom:12px; }
 .evidence-link { display:inline-block; margin-top:6px; }
@@ -307,8 +307,8 @@ body { font-variant-numeric:tabular-nums; }
  .book-spread { border-top:0; padding-top:0; }
  .stock-watch h2 { font-size:1rem; }
  .stock-watch > h3 { margin:8px 0 4px; }
- .stock-watch .suki-byline { gap:8px; margin:5px 0 7px; font-size:.83rem; }
- .stock-watch .suki-byline img { width:36px; height:36px; }
+ .stock-watch .sari-byline { gap:8px; margin:5px 0 7px; font-size:.83rem; }
+ .stock-watch .sari-byline img { width:36px; height:36px; }
  .stock-watch .capture-form { margin-top:14px; }
  .overview .page-heading h1 { font-size:1.45rem; }
  .status { display:inline-flex; }
