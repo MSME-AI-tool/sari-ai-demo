@@ -7,6 +7,7 @@ import { expenseLabels, LanguageSelect, localError, useLanguage } from './langua
 import { ProductPhoto, StockInsights, StockPlanner, StoreInsights } from './StoreTools';
 
 import Notebook from './Notebook';
+import { AnswerVisual } from './RecordViews';
 
 type PageProps = { store: Store; open: (entry: Entry) => void };
 const reasons: Record<string, string> = { opening: 'Opening count', restock: 'Stock-in', count: 'Physical count', waste: 'Wastage', sale: 'Sale', correction: 'Sale correction' };
@@ -313,7 +314,11 @@ export function Ask({ open, store }: PageProps) {
           <div className="answer"><img className="sari-icon" src="/sari.svg" alt="" /><div>
             <p className="answer-source"><strong>Sari</strong> · {answer.source === 'external' ? t('Live AI', 'Live AI') :
               answer.source === 'guide' ? t('App guide', 'Gabay sa app') : t('Store records', 'Mga tala ng tindahan')}</p>
-            <p className="answer-text">{answer.text}</p>
+            {answer.view ? <>
+              <AnswerVisual view={answer.view} />
+              <details className="answer-explanation"><summary>{t('Read Sari’s explanation', 'Basahin ang paliwanag ni Sari')}</summary>
+                <p className="answer-text">{answer.text}</p></details>
+            </> : <p className="answer-text">{answer.text}</p>}
             {store.ai_configured !== false && answer.reason && <p className="answer-status">{t(
               'Live AI didn’t respond. This reply used the built-in assistant.',
               'Hindi sumagot ang Live AI. Galing ang sagot na ito sa built-in na assistant.',
@@ -321,9 +326,9 @@ export function Ask({ open, store }: PageProps) {
             {answer.draft && <button className="text-link" onClick={() => open({ ...answer.draft!, original: question, draftSource: answer.source })}>
               {t('Review draft', 'Suriin ang draft')} <Icon name="arrow" size={17} /></button>}
             {answer.destination && <a className="evidence-link" href={'#' + answer.destination}>{destinations[answer.destination]} →</a>}
-            {!!answer.facts?.length && <details className="answer-evidence" open={answer.agent === 'forecast' && answer.source === 'records'}><summary>{t('View store figures', 'Tingnan ang mga bilang')}</summary>
+            {!!answer.facts?.length && <details className="answer-evidence"><summary>{t('View all supporting figures', 'Tingnan ang lahat ng pinagbatayang bilang')}</summary>
               <dl>{answer.facts.map(({ label, value }, i) => <div key={i}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></details>}
-            {answer.agent === 'forecast' && answer.source === 'records' && <p>
+            {answer.agent === 'forecast' && answer.source === 'records' && <p className="answer-record-links">
               <a href="#sales">{t('Review sales', 'Suriin ang benta')}</a> ·{' '}
               <a href="#stock/history">{t('Check stock movements', 'Suriin ang galaw ng stock')}</a> ·{' '}
               <a href="#ledger">{t('Review unpaid credit', 'Suriin ang mga utang')}</a>

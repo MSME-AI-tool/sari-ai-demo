@@ -92,7 +92,7 @@ export default function Notebook({ open, store, area = 'stock' }: {
     expense: 'Gastos na ₱50 para sa pamasahe.', payment: 'Bayad ni Customer A na 20 pesos.',
   };
   return <form className="note-entry capture-form" onSubmit={review}>
-    <label>{mode === 'receipt' ? t('Read from receipt', 'Nabasa sa resibo') : mode === 'product'
+    <label>{mode === 'receipt' ? t('Read from log', 'Nabasa sa talaan') : mode === 'product'
       ? t('Read from product label', 'Nabasa sa label ng item') :
       question ? t('Add the missing detail', 'Idagdag ang kulang na detalye') : t('Describe an entry to Sari', 'Ilarawan kay Sari ang itatala')}
       <textarea rows={mode === 'note' ? 2 : 5} value={note} onChange={event => setNote(event.target.value)}
@@ -101,7 +101,7 @@ export default function Notebook({ open, store, area = 'stock' }: {
       {(voice.SpeechRecognition || voice.webkitSpeechRecognition) && <button type="button" className="button subtle" disabled={pending || listening}
         onClick={startVoice}>{listening ? t('Listening…', 'Nakikinig…') : t('Dictate', 'Magsalita')}</button>}
       {area === 'stock' && (['receipt', 'product'] as const).map(kind => <label className="button subtle file-button" key={kind}>
-        {kind === 'receipt' ? t('Read receipt', 'Basahin ang resibo') : t('Find by photo', 'Hanapin sa litrato')}
+        {kind === 'receipt' ? t('Read log', 'Basahin ang talaan') : t('Find by photo', 'Hanapin sa litrato')}
         <input type="file" accept="image/*" capture="environment" disabled={pending} onChange={event => {
           const file = event.target.files?.[0];
           if (file) void readPhoto(file, kind);

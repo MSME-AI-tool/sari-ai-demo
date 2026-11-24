@@ -44,6 +44,22 @@ export type AskReply = {
   destination?: 'home' | 'sales' | 'stock' | 'stock/history' | 'stock/planner' | 'expenses' | 'ledger';
   facts?: { label: string; value: string }[];
   matches?: string[];
+  view?: RecordView;
+};
+
+export type RankedProduct = { id: string; name: string; unit: string; quantity: number; sales: number };
+export type StockEvidence = {
+  id: string; name: string; unit: string; stock: number; threshold: number;
+  sold: number; daily: number | null; days: number | null;
+};
+export type RecordView = {
+  kind: 'overview' | 'expenses' | 'cash' | 'credit' | 'profit' | 'stock' | 'restock';
+  start: string; end: string; forecastStart: string; forecastEnd: string;
+  sales: number; cashSales: number; creditSales: number; repayments: number;
+  expenses: number; gross: number; missingCosts: boolean; outstanding: number;
+  products: RankedProduct[]; stocks: StockEvidence[];
+  expenseCategories: { category: string; amount: number }[];
+  trend: { day: string; sales: number; expenses: number }[];
 };
 
 const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
@@ -76,11 +92,11 @@ export function ledger(store: Store) {
 export function analyze(store: Store, length: number) {
   const start = shiftDay(store.today, 1 - length);
   const previousStart = shiftDay(start, -length);
-  const sales = store.sales.filter((sale) => sale.day >= start);
+  const sales = store.sales.filter((sale) => sale.day >= start && sale.day <= store.today);
   const salesIds = new Set(sales.map((sale) => sale.id));
   const items = store.items.filter((item) => salesIds.has(item.sale_id));
-  const expenses = store.expenses.filter((expense) => expense.day >= start);
-  const payments = store.payments.filter((payment) => payment.day >= start);
+  const expenses = store.expenses.filter((expense) => expense.day >= start && expense.day <= store.today);
+  const payments = store.payments.filter((payment) => payment.day >= start && payment.day <= store.today);
   const currentSales = add(sales, (sale) => sale.total);
   const priorSales = store.sales.filter((sale) => sale.day >= previousStart && sale.day < start);
   const previousSales = add(priorSales, (sale) => sale.total);
@@ -109,6 +125,9 @@ export function analyze(store: Store, length: number) {
   return {
     sales: currentSales, previousSales, expenses: currentExpenses, previousExpenses,
     gross: currentSales - add(items, (item) => item.cost * item.quantity),
+    cashSales: add(sales.filter((sale) => sale.method === 'cash'), (sale) => sale.total),
+    creditSales: add(sales.filter((sale) => sale.method === 'credit'), (sale) => sale.total),
+    repayments: add(payments, (payment) => payment.amount),
     cash: add(sales.filter((sale) => sale.method === 'cash'), (sale) => sale.total)
       + add(payments, (payment) => payment.amount),
     byProduct, trend, forecasts, missingCosts, adjustment,

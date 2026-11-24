@@ -119,7 +119,10 @@ def ask_store(entry):
     snapshot = store.snapshot()
     if entry.get("capture") in ("receipt", "product"):
         return agents.capture(snapshot, question, entry["capture"], language)
-    return agents.ask(snapshot, question, length, mode, language, context=context)
+    answer = agents.ask(snapshot, question, length, mode, language, context=context)
+    if answer["agent"] in ("insights", "forecast") and answer["source"] != "guide" and not answer.get("draft"):
+        answer["view"] = agents.response_view(snapshot, length, answer["agent"], question)
+    return answer
 
 
 WRITES = {

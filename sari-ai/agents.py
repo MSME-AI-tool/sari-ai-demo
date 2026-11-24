@@ -294,6 +294,72 @@ def forecast(snapshot, question):
     return report, fallback
 
 
+def response_view(snapshot, length, agent, question):
+    """Numeric chart data from the same snapshot used to answer the question."""
+    day, start, _ = reporting_window(snapshot, length)
+    sales = [s for s in snapshot["sales"] if start <= s["day"] <= day]
+    ids = {s["id"] for s in sales}
+    items = [i for i in snapshot["items"] if i["sale_id"] in ids]
+    expenses = [e for e in snapshot["expenses"] if start <= e["day"] <= day]
+    repayments = sum(p["amount"] for p in snapshot["payments"] if start <= p["day"] <= day)
+    cash_sales = sum(s["total"] for s in sales if s["method"] == "cash")
+    total = sum(s["total"] for s in sales)
+    products = []
+    stocks = []
+    forecast_start = (date.fromisoformat(day) - timedelta(days=7)).isoformat()
+    recent_ids = {s["id"]: s["day"] for s in snapshot["sales"] if forecast_start <= s["day"] < day}
+    for product in snapshot["products"]:
+        matching = [i for i in items if i["product_id"] == product["id"]]
+        quantity = sum(i["quantity"] for i in matching)
+        if quantity:
+            products.append({"id": product["id"], "name": product["name"], "unit": product.get("unit", "unit"),
+                             "quantity": quantity, "sales": sum(i["price"] * i["quantity"] for i in matching)})
+        recent = [i for i in snapshot["items"] if i["product_id"] == product["id"] and i["sale_id"] in recent_ids]
+        sold = sum(i["quantity"] for i in recent)
+        daily = sold / 7 if len({recent_ids[i["sale_id"]] for i in recent}) >= 3 else None
+        stocks.append({"id": product["id"], "name": product["name"], "unit": product.get("unit", "unit"),
+                       "stock": product["stock"], "threshold": product["threshold"], "sold": sold,
+                       "daily": daily, "days": 0 if product["stock"] == 0 else product["stock"] / daily if daily else None})
+    stocks.sort(key=lambda p: (not (p["stock"] <= p["threshold"] or p["days"] is not None and p["days"] < 3),
+                               p["days"] if p["days"] is not None else math.inf, p["name"]))
+    categories = defaultdict(int)
+    for entry in expenses:
+        categories[entry["category"]] += entry["amount"]
+    dates = [(date.fromisoformat(start) + timedelta(days=i)).isoformat() for i in range(length)]
+    kind = "overview"
+    if agent == "forecast":
+        kind = "restock"
+    elif EXPENSE_TOPIC.search(question):
+        kind = "expenses"
+    elif CREDIT_TOPIC.search(question) and not re.search(r"\b(?:cash|pera|natanggap)\b", question, re.I):
+        kind = "credit"
+    elif re.search(r"\b(?:cash|received|pera|natanggap)\b", question, re.I):
+        kind = "cash"
+    elif re.search(r"\b(?:profit|gross|margin|tubo)\b", question, re.I):
+        kind = "profit"
+    elif INVENTORY_TOPIC.search(question) or re.search(r"\bstock\b", question, re.I) and not SALES_TOPIC.search(question):
+        kind = "stock"
+    requested = {p["id"] for p in matching_products(snapshot["products"], question.casefold())}
+    if kind in ("stock", "restock") and requested:
+        stocks = [row for row in stocks if row["id"] in requested]
+    return {
+        "kind": kind, "start": start, "end": day, "forecastStart": forecast_start,
+        "forecastEnd": (date.fromisoformat(day) - timedelta(days=1)).isoformat(),
+        "sales": total, "cashSales": cash_sales, "creditSales": total - cash_sales,
+        "repayments": repayments, "expenses": sum(e["amount"] for e in expenses),
+        "gross": total - sum(i["cost"] * i["quantity"] for i in items),
+        "missingCosts": any(i["cost"] == 0 for i in items),
+        "outstanding": sum(s["total"] for s in snapshot["sales"] if s["method"] == "credit" and s["day"] <= day)
+                       - sum(p["amount"] for p in snapshot["payments"] if p["day"] <= day),
+        "products": sorted(products, key=lambda p: (-p["sales"], p["name"])),
+        "expenseCategories": [{"category": key, "amount": value} for key, value in
+                              sorted(categories.items(), key=lambda row: (-row[1], row[0]))],
+        "stocks": stocks,
+        "trend": [{"day": date, "sales": sum(s["total"] for s in sales if s["day"] == date),
+                   "expenses": sum(e["amount"] for e in expenses if e["day"] == date)} for date in dates],
+    }
+
+
 def health(snapshot, length):
     day, start, _ = reporting_window(snapshot, length)
     products = {p["id"]: p for p in snapshot["products"]}
@@ -532,8 +598,8 @@ def capture(snapshot, text, mode, language):
                 lines.append(line)
         if lines and len(lines) <= 50 and len({line["product_id"] for line in lines}) == len(lines):
             return {"agent": "recording", "source": "records",
-                    "text": ("Suriin ang bilang at presyo sa resibo. Idagdag ang mga linyang hindi nabasa."
-                             if language == "fil" else "Verify the quantities and prices against the receipt. Add any unread lines."),
+                    "text": ("Suriin ang bilang at presyo sa talaan. Idagdag ang mga linyang hindi nabasa."
+                             if language == "fil" else "Verify the quantities and prices against the log. Add any unread lines."),
                     "draft": {"kind": "stock", "reason": "restock", "day": snapshot["today"], "lines": lines}}
         return {"agent": "recording", **recording(snapshot, text, language, receipt=True)}
     matches = photo_matches(snapshot["products"], text)
