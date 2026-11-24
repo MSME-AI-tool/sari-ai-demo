@@ -86,6 +86,13 @@ class AssistantTests(unittest.TestCase):
         self.assertNotIn('draft', answer)
         self.complete.assert_not_called()
 
+    def test_english_restock_button_uses_the_recorded_figures(self):
+        answer = agents.ask(self.snapshot, 'What should I restock next?', 7, 'auto', 'en')
+        self.assertEqual(answer['source'], 'records')
+        self.assertEqual(answer['destination'], 'stock/planner')
+        self.assertIn('Recorded net cash flow', str(answer['facts']))
+        self.complete.assert_not_called()
+
     def test_weather_question_requires_weather_history(self):
         answer = agents.ask(self.snapshot, 'Do noodles sell more when it rains?', 7, 'auto')
         self.assertIn('weather', answer['text'].lower())
