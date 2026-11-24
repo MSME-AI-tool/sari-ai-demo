@@ -638,7 +638,7 @@ def ask(snapshot, question, length, selected, language="en", context=""):
                          "Para sa dami ng order, buksan ang planner at ilagay ang araw bago dumating at piraso bawat pakete."
                          if language == "fil" else "Are you checking which items are low, or how many units to order? "
                          "For an order quantity, open the planner and enter your supplier lead time and pack size.")}
-    if agent == "forecast" and re.search(r"\b(?:reorder\w*|(?:i-?)?restock\w*|umorder|bilhin|buy next)\b", question, re.I):
+    if agent == "forecast" and re.search(r"\b(?:reorder\w*|(?:i-?)?restock|umorder|bilhin|buy next)\b", question, re.I):
         facts, explanation = forecast(snapshot, question.casefold())
         day, start, _ = reporting_window(snapshot, length)
         sales = [s for s in snapshot["sales"] if start <= s["day"] <= day]
