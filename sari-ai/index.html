@@ -3,7 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#15294a" />
+    <meta name="theme-color" content="#fffefa" />
+    <script>
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem('sari-theme') === 'dark' ? 'dark' : 'light';
+        if (document.documentElement.dataset.theme === 'dark') {
+          document.querySelector('meta[name="theme-color"]').content = '#101720';
+        }
+      } catch { /* Keep the default theme when storage is unavailable. */ }
+    </script>
     <meta name="description" content="Sales, stock, and store insights for small retailers." />
     <link rel="icon" href="/icon-192.png" />
     <title>SARI-AI | Your Store</title>

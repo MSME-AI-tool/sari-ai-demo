@@ -54,6 +54,21 @@ function NavLink({ id, label, icon, active }: { id: Page; label: string; icon: I
 
 function App() {
   const { t } = useLanguage();
+  const [dark, setDark] = useState(() => document.documentElement.dataset.theme === 'dark');
+  useEffect(() => {
+    const theme = dark ? 'dark' : 'light';
+    document.documentElement.dataset.theme = theme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#101720' : '#fffefa');
+    try { localStorage.setItem('sari-theme', theme); } catch { /* Theme still works without storage. */ }
+  }, [dark]);
+  const themeToggle = (compact = false) => <button type="button"
+    className={'theme-toggle' + (compact ? ' theme-toggle-mobile' : '')}
+    aria-label={t('Dark mode', 'Madilim na tema')} aria-pressed={dark}
+    title={dark ? t('Switch to light mode', 'Gumamit ng maliwanag na tema') : t('Switch to dark mode', 'Gumamit ng madilim na tema')}
+    onClick={() => setDark(value => !value)}>
+    <Icon name={dark ? 'sun' : 'moon'} size={19} />
+    {!compact && <span>{t('Dark mode', 'Madilim na tema')}</span>}
+  </button>;
   const page = useSyncExternalStore(onPageChange, readPage);
   const connected = useSyncExternalStore(onConnectivityChange, () => navigator.onLine);
   const [store, setStore] = useState<Store | null>(null);
@@ -112,7 +127,9 @@ function App() {
       <nav className="side-nav records-nav" aria-label={t('Store records', 'Mga tala ng tindahan')}>
         <span>{t('RECORDS', 'MGA TALA')}</span>{records.map((link) => <NavLink {...link} key={link.id} active={page === link.id} />)}
       </nav>
-      <span className="rail-status"><i />{connected ? t('Online', 'Konektado') : t('Offline', 'Walang koneksiyon')}</span>
+      <div className="sidebar-footer">{themeToggle()}
+        <span className="rail-status"><i />{connected ? t('Online', 'Konektado') : t('Offline', 'Walang koneksiyon')}</span>
+      </div>
     </aside>
 
     <div className="workspace">
@@ -124,6 +141,7 @@ function App() {
             !connected ? t('Offline', 'Walang koneksiyon') : problem ? t('Unavailable', 'Hindi maabot') : store ? t('Online', 'Konektado') : t('Connecting', 'Kumokonekta')
           }</span>
           <LanguageSelect />
+          {themeToggle(true)}
           <button className="button primary quick-sale" disabled={!store || !connected}
             onClick={() => open({ kind: 'sale' })}><Icon name="plus" size={18} /> {t('Record sale', 'Itala ang benta')}</button>
         </div>

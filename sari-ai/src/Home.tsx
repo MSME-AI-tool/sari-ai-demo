@@ -15,9 +15,9 @@ function DailySales({ trend }: { trend: ReturnType<typeof analyze>['trend'] }) {
   return <figure className="daily-sales"><figcaption>{t('Daily sales', 'Benta bawat araw')}</figcaption>
     <div className="line-plot"><div className="tick-labels"><span>{peso(peak)}</span><span>{peso(peak / 2)}</span><span>₱0</span></div>
     <svg viewBox="0 0 600 134" preserveAspectRatio="none" role="img" aria-label={trend.map(p => weekday(p.day, language) + ' ' + peso(p.sales)).join(', ')}>
-      {[8,67,126].map(y => <line key={y} x1="0" x2="600" y1={y} y2={y} stroke="#dce1e6" />)}
-      <polyline points={coordinates.map(point => point.join(',')).join(' ')} fill="none" stroke="#155ee8" strokeWidth="3" vectorEffect="non-scaling-stroke"/>
-      <circle cx={last[0]} cy={last[1]} r="4.5" fill="#155ee8"/>
+      {[8,67,126].map(y => <line key={y} x1="0" x2="600" y1={y} y2={y} stroke="var(--line)" />)}
+      <polyline points={coordinates.map(point => point.join(',')).join(' ')} fill="none" stroke="var(--teal)" strokeWidth="3" vectorEffect="non-scaling-stroke"/>
+      <circle cx={last[0]} cy={last[1]} r="4.5" fill="var(--teal)"/>
     </svg></div><div className="day-labels">{trend.map((p, i) => ({ ...p, index: i }))
       .filter(p => trend.length <= 7 || p.index % 4 === 0 && p.index < trend.length - 2 || p.index === trend.length - 1)
       .map(p => <span key={p.day} style={{ left: `${p.index / Math.max(1, trend.length - 1) * 100}%` }}>
