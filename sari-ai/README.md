@@ -32,7 +32,11 @@ Set these secrets in the SARI-AI web service's **Environment** on Render, or in 
 | `GROQ_API_KEY` | Groq | `openai/gpt-oss-20b` |
 | `OPENROUTER_API_KEY` | OpenRouter | `nvidia/nemotron-3.5-super-vl:free` |
 
-Sari tries Groq first, then OpenRouter if Groq cannot return a usable reply. Either key works on its own. If the configured providers are unavailable, Sari uses store records and app guidance. Model replies display **Live AI**. Run `python smoke_agents.py https://YOUR-SERVICE.onrender.com` for read-only checks of all four agents.
+Set `AI_PROVIDER=groq` to use Groq's `openai/gpt-oss-20b` only (the default and the Render Blueprint setting). Existing OpenRouter or SEA-LION settings are not used in this mode. Set `AI_PROVIDER=openrouter` only when intentionally using OpenRouter, or `auto` to explicitly enable both providers in the order shown. Keep API keys in Render's secrets, never in source code. If the selected provider is unavailable, Sari uses store records and app guidance. Model replies display **Live AI**.
+
+Ask Sari streams answer text from the provider through `/api/v1/ask/stream`; it does not simulate typing after a complete answer. Only answer content is shown, not model reasoning. A Stop response control cancels the request. If a stream fails, its partial text is replaced by the record-based answer or an interruption message. Transaction drafts stay buffered until they have been validated and still require confirmation before saving. The original JSON `/api/v1/ask` route remains available for Notebook and other clients.
+
+Run `python smoke_agents.py https://YOUR-SERVICE.onrender.com` for read-only route checks. Some stock and restock answers deliberately use direct calculations without a model call; test a sales-analysis question when checking provider connectivity. Run `npm run test:stream` for the frontend stream parser tests.
 
 The backend sends the submitted question and relevant store figures or product names to the configured provider. Use fictional data for the demo, including in the questions.
 

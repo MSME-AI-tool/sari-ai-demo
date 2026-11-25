@@ -678,7 +678,7 @@ def filipino_summary(snapshot, question, agent, facts, today):
     return f"{translated['Benta']} ang benta sa panahong {values['Reporting period']}. {values['Previous period sales']} noong naunang panahon."
 
 
-def ask(snapshot, question, length, selected, language="en", context=""):
+def ask(snapshot, question, length, selected, language="en", context="", on_delta=None):
     if context and not (STOCK_QUANTITY.fullmatch(question.strip()) or re.match(
             r"^(?:make (?:it|that)|change (?:it|that)|instead\b|palitan\b|gawing?\b|iyon\b|\d+\b)", question, re.I)):
         if choose_agent(question) == "recording" or GUIDE_REQUEST.search(question) or INVENTORY_TOPIC.search(question) or re.search(
@@ -756,7 +756,7 @@ def ask(snapshot, question, length, selected, language="en", context=""):
     raw, status = llm.complete(ANALYTICS_PROMPT + PROMPTS[agent] + locale, {
         "question": question, "previous_question": context, "today": today, "period_start": start, "prior_period_start": previous,
         "verified_store_figures": facts,
-    })
+    }, on_delta=on_delta)
     destination = {"forecast": "stock", "health": "stock/history", "insights": "sales"}[agent]
     if agent == "insights":
         if EXPENSE_TOPIC.search(question):

@@ -2,10 +2,12 @@ import json
 import base64
 import binascii
 import mimetypes
+import logging
 from datetime import date
-from os import getenv
 from pathlib import Path
 from socketserver import ThreadingMixIn
+from queue import Empty, Full, Queue
+from threading import Event, Thread
 from wsgiref.simple_server import WSGIServer, make_server
 
 import agents
@@ -106,7 +108,7 @@ def create_payment(entry):
     return store.add_payment(record_day(entry), text(entry, "customer"), number(entry, "amount", 1, 10_000_000))
 
 
-def ask_store(entry):
+def prepare_ask(entry):
     question = text(entry, "question", 4000)
     length = number(entry, "period", 1, 14)
     mode = text(entry, "agent", 20, required=False) or "auto"
@@ -117,12 +119,62 @@ def ask_store(entry):
     if mode != "auto" and mode not in agents.AGENTS:
         raise store.StoreError("Choose a valid agent.")
     snapshot = store.snapshot()
+    return snapshot, question, length, mode, language, context
+
+
+def ask_store(entry, on_delta=None, prepared=None):
+    snapshot, question, length, mode, language, context = prepared if prepared is not None else prepare_ask(entry)
     if entry.get("capture") in ("receipt", "product"):
         return agents.capture(snapshot, question, entry["capture"], language)
-    answer = agents.ask(snapshot, question, length, mode, language, context=context)
+    answer = agents.ask(snapshot, question, length, mode, language, context=context, on_delta=on_delta)
     if answer["agent"] in ("insights", "forecast") and answer["source"] != "guide" and not answer.get("draft"):
         answer["view"] = agents.response_view(snapshot, length, answer["agent"], question)
     return answer
+
+
+def stream_answer(start, entry):
+    prepared = prepare_ask(entry)  # Validate before committing the streaming headers.
+    start("200 OK", [("Content-Type", "text/event-stream; charset=utf-8"),
+                     ("Cache-Control", "no-cache, no-transform"), ("X-Accel-Buffering", "no"),
+                     ("X-Content-Type-Options", "nosniff")])
+    def generate():
+        events = Queue(maxsize=32)
+        cancelled = Event()
+        def send(kind, data):
+            while not cancelled.is_set():
+                try:
+                    events.put((kind, data), timeout=.1)
+                    return
+                except Full:
+                    continue
+            raise llm.StreamCancelled()
+        def produce():
+            try:
+                answer = ask_store(entry, on_delta=lambda chunk: send("delta", {"text": chunk}), prepared=prepared)
+                send("done", answer)
+            except llm.StreamCancelled:
+                pass
+            except Exception as error:
+                logging.getLogger(__name__).error("Sari stream failed (%s)", type(error).__name__)
+                try:
+                    send("error", {"detail": "The response was interrupted. Please try again."})
+                except llm.StreamCancelled:
+                    pass
+        try:
+            yield b": ready\n\n"
+            Thread(target=produce, daemon=True).start()
+            while not cancelled.is_set():
+                try:
+                    kind, data = events.get(timeout=5)
+                except Empty:
+                    yield b": waiting\n\n"
+                    continue
+                yield ("event: " + kind + "\ndata: " + json.dumps(data, ensure_ascii=False) + "\n\n").encode("utf-8")
+                if kind in ("done", "error"):
+                    return
+        finally:
+            cancelled.set()
+    return generate()
 
 
 WRITES = {
@@ -167,13 +219,15 @@ def application(environ, start):
         if method in ("GET", "HEAD") and path == API + "health":
             return json_output(start, "200 OK", {"status": "ok"}, head)
         if method in ("GET", "HEAD") and path == API + "store":
-            ai_configured = any(getenv(variable, "").strip() for _, variable, _, _ in llm.PROVIDERS)
+            ai_configured = bool(llm.configured_providers())
             return json_output(start, "200 OK", {**store.snapshot(), "ai_configured": ai_configured}, head)
-        if method == "POST" and (path in WRITES or path == API + "ask"):
+        if method == "POST" and (path in WRITES or path in (API + "ask", API + "ask/stream")):
             if environ.get("CONTENT_TYPE", "").split(";")[0].strip().lower() != "application/json":
                 return json_output(start, "415 Unsupported Media Type", {"detail": "Send the record as JSON."})
             try:
                 entry = request_body(environ)
+                if path == API + "ask/stream":
+                    return stream_answer(start, entry)
                 if path == API + "ask":
                     return json_output(start, "200 OK", ask_store(entry))
                 receipt = WRITES[path](entry)

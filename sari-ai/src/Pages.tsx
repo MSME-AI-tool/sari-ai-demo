@@ -8,6 +8,7 @@ import { ProductPhoto, StockInsights, StockPlanner, StoreInsights } from './Stor
 
 import Notebook from './Notebook';
 import { AnswerVisual } from './RecordViews';
+import { askStream } from './askStream';
 
 type PageProps = { store: Store; open: (entry: Entry) => void };
 const reasons: Record<string, string> = { opening: 'Opening count', restock: 'Stock-in', count: 'Physical count', waste: 'Wastage', sale: 'Sale', correction: 'Sale correction' };
@@ -264,11 +265,14 @@ export function Ask({ open, store }: PageProps) {
   const [period, setPeriod] = useState(7);
   const [thread, setThread] = useState<{ question: string; answer: AskReply; recordContext: string }[]>([]);
   const [pending, setPending] = useState('');
+  const [streamed, setStreamed] = useState('');
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => () => request.current?.abort(), []);
   const [error, setError] = useState('');
   const conversation = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (conversation.current) conversation.current.scrollTop = conversation.current.scrollHeight;
-  }, [thread, pending]);
+  }, [thread, pending, streamed]);
   const examples = [
     t('What is my stock right now?', 'Ano ang stock ko ngayon?'),
     t('Why was cash lower than sales?', 'Bakit mas mababa ang natanggap na pera kaysa sa benta?'),
@@ -287,13 +291,18 @@ export function Ask({ open, store }: PageProps) {
     const previous = thread.at(-1);
     const followUp = /^(?:make (?:it|that)|change (?:it|that)|instead\b|palitan\b|gawing?\b|iyon\b|\d+\b)/i.test(question);
     const context = !newTopic && previous && (followUp || previous.answer.clarification) ? previous.recordContext : '';
-    setPending(question); setError(''); setMessage('');
+    const controller = new AbortController();
+    request.current = controller;
+    setPending(question); setStreamed(''); setError(''); setMessage('');
     try {
-      const answer = await api<AskReply>('ask', { question, period, language, context });
+      const answer = await askStream({ question, period, language, context },
+        chunk => setStreamed(value => value + chunk), controller.signal);
       const recordContext = answer.agent === 'recording' ? [context, question, answer.text].filter(Boolean).join('\n').slice(0, 3900) : '';
       setThread(items => [...items, { question, answer, recordContext }]);
-    } catch (problem) { setError(localError(t, problem)); setMessage(question); }
-    finally { setPending(''); }
+    } catch (problem) {
+      if (!controller.signal.aborted) setError(localError(t, problem));
+      setMessage(question);
+    } finally { request.current = null; setPending(''); setStreamed(''); }
   }
   return <>
     <header className="page-heading"><div><h1>{t('Ask Sari', 'Tanungin si Sari')}</h1>
@@ -316,7 +325,7 @@ export function Ask({ open, store }: PageProps) {
               answer.source === 'guide' ? t('App guide', 'Gabay sa app') : t('Store records', 'Mga tala ng tindahan')}</p>
             {answer.view ? <>
               <AnswerVisual view={answer.view} />
-              <details className="answer-explanation"><summary>{t('Read Sari’s explanation', 'Basahin ang paliwanag ni Sari')}</summary>
+              <details className="answer-explanation" open={answer.source === 'external'}><summary>{t('Read Sari’s explanation', 'Basahin ang paliwanag ni Sari')}</summary>
                 <p className="answer-text">{answer.text}</p></details>
             </> : <p className="answer-text">{answer.text}</p>}
             {store.ai_configured !== false && answer.reason && <p className="answer-status">{t(
@@ -334,7 +343,14 @@ export function Ask({ open, store }: PageProps) {
               <a href="#ledger">{t('Review unpaid credit', 'Suriin ang mga utang')}</a>
             </p>}
           </div></div></div>)}
-        {pending && <div><div className="question">{pending}</div><p role="status">{t('Preparing a response…', 'Inihahanda ang sagot…')}</p></div>}
+        {pending && <div><div className="question">{pending}</div>
+          {streamed ? <div className="answer" aria-busy="true"><img className="sari-icon" src="/sari.svg" alt="" /><div>
+            <p className="answer-source"><strong>Sari</strong> · {t('Responding…', 'Sumasagot…')}</p>
+            <p className="answer-text">{streamed}</p></div></div>
+            : <p role="status">{t('Preparing a response…', 'Inihahanda ang sagot…')}</p>}
+          <button className="text-link" type="button" onClick={() => request.current?.abort()}>
+            {t('Stop response', 'Itigil ang sagot')}</button>
+        </div>}
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
       <form className="ask-form" onSubmit={event => { event.preventDefault(); void reply(message.trim()); }}>
