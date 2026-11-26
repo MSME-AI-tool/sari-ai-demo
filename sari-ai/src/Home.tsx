@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { add, analyze, ledger, peso, shiftDay, shortDate, weekday } from './data';
 import type { Entry, Store } from './data';
-import { Icon } from './ui';
+import { Icon, SummaryCards } from './ui';
 import Notebook from './Notebook';
 import { StoreHealth } from './StoreTools';
 import { useLanguage } from './language';
@@ -48,27 +48,31 @@ export default function Home({ store, open }: { store: Store; open: (entry: Entr
     <header className="page-heading"><div><h1><span className="home-title-desktop">{t('Store overview', 'Buod ng tindahan')}</span>
       <span className="mobile-only">{t('Your Store', 'Ang Tindahan Mo')}</span></h1><p>{date}</p></div>
       <button className="button primary desktop-only" onClick={recordSale}><Icon name="plus" />{t('Record sale', 'Itala ang benta')}</button></header>
+    <button className="button primary mobile-only home-sale" onClick={recordSale}>
+      <Icon name="plus" size={18} />{t('Record sale', 'Itala ang benta')}
+    </button>
+    <SummaryCards items={[
+      { label: t('Today’s sales', 'Benta ngayong araw'), value: peso(day.sales), tone: 'blue',
+        detail: delta === 0 ? t('Same as yesterday', 'Katulad ng kahapon') : peso(Math.abs(delta)) +
+          (delta > 0 ? t(' above yesterday', ' na mas mataas kaysa kahapon') : t(' below yesterday', ' na mas mababa kaysa kahapon')) },
+      { label: t('Expenses today', 'Gastos ngayong araw'), value: peso(day.expenses), tone: 'yellow' },
+      { label: t('Cash received', 'Natanggap na pera'), value: peso(report.cash),
+        detail: shortDate(shiftDay(store.today, 1 - period), language) + '–' + shortDate(store.today, language) },
+    ]} />
     <div className="overview-period">
-      <div><h2>{t('Your store in numbers', 'Ang tindahan sa mga bilang')}</h2>
-        <p>{shortDate(shiftDay(store.today, 1 - period), language)}–{shortDate(store.today, language)}</p></div>
+      <p>{t('Sales and activity', 'Benta at galaw ng tindahan')} · {shortDate(shiftDay(store.today, 1 - period), language)}–{shortDate(store.today, language)}</p>
       <label>{t('Chart period', 'Saklaw ng mga graph')}<select value={period} onChange={event => setPeriod(Number(event.target.value))}>
         <option value={1}>{t('Today', 'Ngayon')}</option><option value={7}>{t('Last 7 days', 'Huling 7 araw')}</option>
         <option value={14}>{t('Last 14 days', 'Huling 14 araw')}</option>
       </select></label>
     </div>
-    <section className="summary-spread"><div className="day-total"><h2>{t('Today’s sales', 'Benta ngayong araw')}</h2><strong>{peso(day.sales)}</strong>
-      <p>{delta === 0 ? t('Same as yesterday', 'Katulad ng kahapon') : peso(Math.abs(delta)) +
-        (delta > 0 ? t(' above yesterday', ' na mas mataas kaysa kahapon') : t(' below yesterday', ' na mas mababa kaysa kahapon'))}</p></div>
-      <div className="spending">{t('Expenses today', 'Gastos ngayong araw')} <strong>{peso(day.expenses)}</strong></div>
-      <button className="button primary mobile-only home-sale" onClick={recordSale}>
-        <Icon name="plus" size={18} />{t('Record sale', 'Itala ang benta')}
-      </button>
-      <DailySales trend={report.trend} />
-    </section>
-    <div className="dashboard-grid">
+    <div className="dashboard-lead">
+      <section className="dashboard-section"><DailySales trend={report.trend} /></section>
       <section className="dashboard-section"><ProductRanking products={report.byProduct.map(row => ({
         id: row.product.id, name: row.product.name, unit: row.product.unit, quantity: row.quantity, sales: row.sales,
       }))} /><a className="evidence-link" href={'#sales/period/' + period}>{t('Review sales', 'Suriin ang benta')} →</a></section>
+    </div>
+    <div className="dashboard-grid">
       <section className="dashboard-section"><Collections cashSales={report.cashSales} creditSales={report.creditSales}
         repayments={report.repayments} outstanding={outstanding} end={store.today} />
         <a className="evidence-link" href="#ledger">{t('Review credit and repayments', 'Suriin ang utang at bayad')} →</a></section>

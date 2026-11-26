@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test:stream": "node --experimental-strip-types --test tests/askStream.test.mjs"
+    "test:stream": "node --experimental-strip-types --test tests/askStream.test.mjs",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
     "react": "19.3.0",

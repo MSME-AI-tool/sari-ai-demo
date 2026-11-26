@@ -65,7 +65,8 @@ def app_guide(question, agent):
 
 def choose_agent(question):
     question = question.casefold()
-    if RECORD_COMMAND.search(question):
+    if RECORD_COMMAND.search(question) or (re.match(r"^\d+\b", spoken_numbers(question))
+            and record_intents(question).intersection({"sale", "restock", "waste"}) and "?" not in question):
         return "recording"
     if re.search(r"\b(?:missing|unusual|checks?|health|anomal\w*|mismatch|audit|kulang na tala)\b", question):
         return "health"
@@ -505,6 +506,12 @@ def recording(snapshot, question, language="en", context="", receipt=False):
         stock = stock_addition(catalogue, typed, context, snapshot["today"], language)
         if stock:
             return stock
+        # Speech and notebook entries also put the action after the item.
+        # Keep these drafts deterministic even when no model is configured.
+        if not context and record_intents(typed) and not re.search(r"\b(?:credit|utang)\b", typed, re.I):
+            parsed = record_log(snapshot, typed, language)
+            if parsed is not None:
+                return parsed
     balances = defaultdict(int)
     for sale in snapshot["sales"]:
         if sale["method"] == "credit" and sale.get("customer"):
@@ -582,26 +589,115 @@ def recording(snapshot, question, language="en", context="", receipt=False):
     }
 
 
-def capture(snapshot, text, mode, language):
-    if mode == "receipt":
-        lines = []
-        for row in text.splitlines():
-            matches = photo_matches(snapshot["products"], row)
-            quantity = re.match(r"^\s*(\d{1,6})\s*(?:[x×]\s*)?(?=[A-Za-z])", row)
-            if len(matches) == 1 and quantity and int(quantity[1]) > 0:
-                if re.search(r"\b(?:case|cases|carton|cartons|box|boxes|kahon)\b", row, re.I):
-                    continue
-                line = {"product_id": matches[0]["id"], "quantity": quantity[1], "note": row.strip()[:420]}
-                prices = re.findall(r"\b(\d{1,5}\.\d{2})\b", row[quantity.end():])
-                if len(prices) == 2 and round(float(prices[0]) * 100) * int(quantity[1]) == round(float(prices[1]) * 100):
-                    line["supplier_cost"] = prices[0]
-                lines.append(line)
-        if lines and len(lines) <= 50 and len({line["product_id"] for line in lines}) == len(lines):
-            return {"agent": "recording", "source": "records",
-                    "text": ("Suriin ang bilang at presyo sa talaan. Idagdag ang mga linyang hindi nabasa."
-                             if language == "fil" else "Verify the quantities and prices against the log. Add any unread lines."),
-                    "draft": {"kind": "stock", "reason": "restock", "day": snapshot["today"], "lines": lines}}
-        return {"agent": "recording", **recording(snapshot, text, language, receipt=True)}
+RECORD_INTENTS = {
+    "sale": r"\b(?:sold|sales?|nabenta|binenta|benta)\b",
+    "restock": r"\b(?:stock[ -]?in|restock(?:ed)?|delivered|delivery|received|dagdag|nagdagdag|dumating)\b",
+    "count": r"\b(?:physical count|counted|count|on hand|remaining|natitira|natitirang|bilang)\b",
+    "waste": r"\b(?:wastage|waste|damaged|expired|nasira|sira|napanis)\b",
+}
+
+
+def record_intents(text):
+    return {kind for kind, pattern in RECORD_INTENTS.items() if re.search(pattern, text, re.I)}
+
+
+def spoken_numbers(text):
+    """Conservative whole-word number normalization for common spoken quantities."""
+    small = dict(zip("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split(), range(20)))
+    small.update(dict(zip("sero isa dalawa tatlo apat lima anim pito walo siyam sampu".split(), range(11))))
+    for prefix, base in (("labing", 10), ("dalawampu", 20), ("tatlumpu", 30), ("apatnapu", 40),
+                         ("limampu", 50), ("animnapu", 60), ("pitumpu", 70), ("walumpu", 80), ("siyamnapu", 90)):
+        for word, value in list(small.items()):
+            if word in {"isa", "dalawa", "tatlo", "apat", "lima", "anim", "pito", "walo", "siyam"}:
+                text = re.sub(r"\b" + prefix + r"(?:['’]t|t|\s+at)?[-\s]+" + word + r"\b", str(base + value), text, flags=re.I)
+        if prefix != "labing":
+            text = re.sub(r"\b" + prefix + r"\b", str(base), text, flags=re.I)
+    for word, value in {"isang": 1, "dalawang": 2, "tatlong": 3, "apat na": 4, "limang": 5,
+                        "anim na": 6, "pitong": 7, "walong": 8, "siyam na": 9}.items():
+        text = re.sub(r"\b" + word + r"\b", str(value), text, flags=re.I)
+    tens = dict(zip("twenty thirty forty fifty sixty seventy eighty ninety".split(), range(20, 100, 10)))
+    for word, value in tens.items():
+        text = re.sub(r"\b" + word + r"(?:[- ](one|two|three|four|five|six|seven|eight|nine))?\b",
+                      lambda m: str(value + small.get((m[1] or "").lower(), 0)), text, flags=re.I)
+    return re.sub(r"\b(?:" + "|".join(small) + r")\b", lambda m: str(small[m[0].lower()]), text, flags=re.I)
+
+
+def record_log(snapshot, text, language, selected="auto", legacy_receipt=False):
+    """Parse one transaction only. OCR never writes records or silently drops rows."""
+    def clarify(en, fil):
+        return {"source": "records", "clarification": True, "text": fil if language == "fil" else en}
+
+    intents = record_intents(text)
+    if len(intents) > 1 or (selected != "auto" and intents and intents != {selected}):
+        return clarify("This note includes different entry types. Separate sales, deliveries, counts, and wastage, then review each entry.",
+                       "Magkakaiba ang uri ng tala. Ihiwalay ang benta, dagdag, bilang, at sira, saka suriin ang bawat isa.")
+    kind = next(iter(intents), selected if selected != "auto" else "restock" if legacy_receipt else "")
+    if not kind:
+        return None
+    if re.search(r"\b(?:not|no|never|hindi|huwag|wala|didn't|don't|will|would|plan|balak|kung)\b|[?]", text, re.I):
+        return clarify("Describe only a completed entry with its item and quantity, or enter it manually.",
+                       "Ilarawan ang natapos na transaksiyon kasama ang item at bilang, o ilagay nang manu-mano.")
+    # Credit needs a customer and historical entries need an explicit date review.
+    if re.search(r"\b(?:credit|utang|yesterday|kahapon|last week|bukas|tomorrow)\b|\d[/-]\d", text, re.I):
+        return clarify("Enter this entry manually so you can check its date, payment method, and customer.",
+                       "Ilagay ito nang manu-mano upang masuri ang petsa, paraan ng bayad, at mamimili.")
+    catalogue = dict(enumerate(snapshot["products"], 1))
+    lines, seen = [], set()
+    for raw in re.split(r"[\n;]+", text):
+        row = raw.strip()
+        if not row:
+            continue
+        # Match names before converting number words so item names remain intact.
+        normalized = re.sub(r"\bkape\b", "Coffee", row, flags=re.I)
+        normalized = re.sub(r"\bsardinas\b", "Sardines", normalized, flags=re.I)
+        matches = photo_matches(snapshot["products"], normalized)
+        if not matches and re.fullmatch(
+                r"(?:sales?|sold|benta|nabenta|stock[ -]?in|restock|delivery|received|dagdag|physical count|count|bilang|wastage|waste|damaged|sira)"
+                r"(?:\s+(?:today|ngayon))?[.!:]?", row, re.I):
+            continue  # Only known headings. Never skip a row with an unread item.
+        if len(matches) != 1:
+            return clarify("Check every row. Use one exact item name and quantity per line, and remove headings or totals before reviewing.",
+                           "Suriin ang bawat linya. Ilagay ang eksaktong item at bilang sa bawat linya at alisin ang mga pamagat o kabuuan.")
+        product = matches[0]
+        # Remove catalog words before locating numbers (e.g. a brand containing digits).
+        remainder = normalized
+        for word in re.findall(r"\w+", product["name"]):
+            remainder = re.sub(r"\b" + re.escape(word) + r"\b", " ", remainder, flags=re.I)
+        remainder = spoken_numbers(remainder)
+        prices = re.findall(r"\b\d{1,5}\.\d{2}\b", remainder)
+        quantities = re.findall(r"(?<![\w.₱/+-])\d{1,7}(?![\w./])", re.sub(r"\b\d+\.\d+\b", "", remainder))
+        minimum = 0 if kind == "count" else 1
+        units = re.findall(r"\b(?:" + STOCK_UNITS + r")\b", remainder, re.I)
+        unit = product["unit"].lower()
+        aliases = {"piece": {"pcs", "pc", "piraso", "pieces"}, "pack": {"pakete", "packet", "packets", "packs"},
+                   "box": {"boxes", "kahon"}, "pouch": {"pouches"}}
+        accepted = {unit, unit + "s", *aliases.get(unit, set())}
+        if (len(quantities) != 1 or not minimum <= int(quantities[0]) <= 1_000_000
+                or product["id"] in seen or any(value.lower() not in accepted for value in units)
+                or re.search(r"[-+]\s*\d|\d\s*[/×]\s*\d|\b(?:hundred|thousand|daan|libo)\b", remainder, re.I)):
+            return clarify(f"Check the quantity for {product['name']}. Enter one whole number in {product['unit']} per item. Convert boxes or cases yourself.",
+                           f"Suriin ang bilang ng {product['name']}. Gumamit ng isang buong bilang sa {product['unit']} bawat item. I-convert muna ang mga kahon.")
+        seen.add(product["id"])
+        line = {"product": next(key for key, p in catalogue.items() if p["id"] == product["id"]),
+                "quantity": int(quantities[0]), "note": row[:420]}
+        if kind == "restock" and len(prices) == 2 and round(float(prices[0]) * 100) * line["quantity"] == round(float(prices[1]) * 100):
+            line["supplier_unit_centavos"] = round(float(prices[0]) * 100)
+        lines.append(line)
+    if not 1 <= len(lines) <= 50:
+        return clarify("Enter up to 50 item rows with their quantities.", "Maglagay ng hanggang 50 linya ng item at bilang.")
+    payload = {"kind": "sale", "method": "cash", "lines": lines} if kind == "sale" else {"kind": "stock", "reason": kind, "lines": lines}
+    message, draft = draft_for(payload, catalogue, snapshot["today"], language)
+    return {"source": "records", "text": message, "draft": draft}
+
+
+def capture(snapshot, text, mode, language, record_type="auto"):
+    if mode in ("receipt", "record"):
+        parsed = record_log(snapshot, text, language, record_type, legacy_receipt=mode == "receipt")
+        if parsed is None:
+            parsed = {"source": "records", "clarification": True,
+                      "text": ("Piliin kung benta, dagdag na stock, aktuwal na bilang, o sira ito. Suriin ang nabasang teksto."
+                               if language == "fil" else "Choose Sale, Stock-in, Physical count, or Wastage, then check the extracted text.")}
+        return {"agent": "recording", **parsed}
     matches = photo_matches(snapshot["products"], text)
     return {"agent": "recording", "source": "guide", "matches": [p["id"] for p in matches],
             "text": ("Suriin ang mga posibleng tugma." if language == "fil" else "Review the possible matches.") if matches else

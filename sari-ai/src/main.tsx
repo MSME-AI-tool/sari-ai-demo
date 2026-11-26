@@ -2,6 +2,7 @@ import { StrictMode, useCallback, useEffect, useRef, useState, useSyncExternalSt
 import { createRoot } from 'react-dom/client';
 import Home from './Home';
 import EntryDialog from './EntryDialog';
+import SariMascot from './SariMascot';
 import { Ask, Expenses, Ledger, More, Sales, Stock } from './Pages';
 import { api } from './data';
 import { peso } from './data';
@@ -58,7 +59,7 @@ function App() {
   useEffect(() => {
     const theme = dark ? 'dark' : 'light';
     document.documentElement.dataset.theme = theme;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#101720' : '#fffefa');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#111326' : '#f7f7f7');
     try { localStorage.setItem('sari-theme', theme); } catch { /* Theme still works without storage. */ }
   }, [dark]);
   const themeToggle = (compact = false) => <button type="button"
@@ -74,6 +75,27 @@ function App() {
   const [store, setStore] = useState<Store | null>(null);
   const [problem, setProblem] = useState('');
   const [entry, open] = useState<Entry | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const assistant = useRef<HTMLDialogElement>(null);
+  const launcher = useRef<HTMLButtonElement>(null);
+  const openEntry = useCallback((next: Entry) => {
+    setChatOpen(false);
+    open(next);
+  }, []);
+
+  useEffect(() => { setChatOpen(false); }, [page]);
+  useEffect(() => {
+    const dialog = assistant.current;
+    if (!dialog) return;
+    if (dialog.open) dialog.close();
+    if (page === 'ask') dialog.show();
+    else if (chatOpen) dialog.showModal();
+  }, [chatOpen, page, !!store]);
+
+  function closeChat() {
+    setChatOpen(false);
+    launcher.current?.focus();
+  }
 
   const [notice, setNotice] = useState<{ receipt: Receipt; entry: Entry } | null>(null);
   const refreshId = useRef(0);
@@ -100,7 +122,7 @@ function App() {
   useEffect(() => { window.scrollTo(0, 0); }, [page]);
 
   const current = allPages.find(({ id }) => page === id) ?? pages[0];
-  const controls = store ? { store, open } : null;
+  const controls = store ? { store, open: openEntry } : null;
   let content;
   if (controls) {
     if (page === 'home') content = <Home {...controls} />;
@@ -118,9 +140,9 @@ function App() {
       document.getElementById('content')?.focus();
     }}>{t('Skip to content', 'Lumaktaw sa nilalaman')}</a>
     <aside className="sidebar">
-      <a className="brand" href="#home"><img className="shop-mark" src="/sari.svg" alt="" /><img src="/wordmark.svg" alt="SARI-AI" /></a>
+      <a className="brand" href="#home"><img src={dark ? '/wordmark-light.svg' : '/wordmark.svg'} alt="SARI-AI" /></a>
       <div className="store-identity">
-        <span><strong>{t('Your Store', 'Ang Tindahan Mo')}</strong></span></div>
+        <Icon name="shop" /><strong>{t('Your Store', 'Ang Tindahan Mo')}</strong></div>
       <nav className="side-nav" aria-label={t('Main navigation', 'Pangunahing menu')}>
         {pages.map((link) => <NavLink {...link} key={link.id} active={page === link.id} />)}
       </nav>
@@ -134,7 +156,7 @@ function App() {
 
     <div className="workspace">
       <header className={page === 'home' ? "topbar home-topbar" : "topbar"}>
-        <a href="#home" className="mobile-brand"><img src="/wordmark.svg" alt="SARI-AI" /></a>
+        <a href="#home" className="mobile-brand"><img src={dark ? '/wordmark-light.svg' : '/wordmark.svg'} alt="SARI-AI" /></a>
         <div className="breadcrumb"><span>{t('Your Store', 'Ang Tindahan Mo')}</span><Icon name="chevron" size={13} /><strong>{t(current.label, filipinoPages[page])}</strong></div>
         <div className="top-actions">
           <span className={connected && !problem ? 'status' : 'status disconnected'}><i />{
@@ -143,25 +165,48 @@ function App() {
           <LanguageSelect />
           {themeToggle(true)}
           <button className="button primary quick-sale" disabled={!store || !connected}
-            onClick={() => open({ kind: 'sale' })}><Icon name="plus" size={18} /> {t('Record sale', 'Itala ang benta')}</button>
+            onClick={() => openEntry({ kind: 'sale' })}><Icon name="plus" size={18} /> {t('Record sale', 'Itala ang benta')}</button>
         </div>
       </header>
       <main id="content" tabIndex={-1} className="content">
-        <p className="panel-footnote">{t('Shared demo · fictional starting records. Changes are visible to other visitors.',
-          'Shared demo · kathang-isip ang panimulang mga tala. Makikita ng ibang bisita ang mga pagbabago.')}</p>
         {!connected && <p role="status" className="notice warning">{t('Reconnect to save or refresh store records.', 'Kumonekta muli para mag-save o mag-refresh.')}</p>}
         {problem && <div role="alert" className="notice warning"><span>{localError(t, new Error(problem))}</span>
           <button className="text-link" onClick={() => void refresh()}>{t('Try again', 'Subukan muli')}</button></div>}
-        {controls && <div hidden={page !== 'ask'}><Ask {...controls} /></div>}
+        {controls && <dialog ref={assistant} id="sari-assistant"
+          className={page === 'ask' ? 'assistant-page' : 'assistant-drawer'}
+          role={page === 'ask' ? 'region' : undefined}
+          aria-labelledby={page === 'ask' ? 'ask-page-title' : 'sari-chat-title'}
+          onCancel={event => { event.preventDefault(); closeChat(); }}
+          onClose={() => { if (!chatOpen && page !== 'ask') launcher.current?.focus(); }}
+          onClick={event => {
+            if ((event.target as HTMLElement).closest('a[href^="#"]')) setChatOpen(false);
+          }}>
+          {page !== 'ask' && <header className="assistant-header">
+            <SariMascot /><div><h2 id="sari-chat-title">{t('Ask Sari', 'Tanungin si Sari')}</h2>
+              <p>{t('Help with your store', 'Tulong para sa tindahan')}</p></div>
+            <button type="button" className="icon-button" aria-label={t('Close chat', 'Isara ang chat')}
+              onClick={closeChat}><Icon name="close" /></button>
+          </header>}
+          <div className="assistant-body"><Ask {...controls} /></div>
+        </dialog>}
         {content}
-        {!controls && !problem && <p className="empty" role="status">{t('Loading Your Store…', 'Binubuksan ang tindahan…')}</p>}
+        {!controls && !problem && <div className="loading-store" role="status">
+          <p>{t('Loading Your Store…', 'Binubuksan ang tindahan…')}</p>
+          <div className="loading-summaries" aria-hidden="true"><span /><span /><span /></div>
+        </div>}
       </main>
     </div>
     <nav className="bottom-nav" aria-label={t('Mobile navigation', 'Menu ng telepono')}>
       {pages.map((link) => <NavLink {...link} key={link.id}
         active={page === link.id || (link.id === 'more' && records.some((record) => record.id === page))} />)}
     </nav>
-    {entry && store && <EntryDialog entry={entry} store={store} close={() => open(null)} saved={(receipt, savedEntry) => {
+    {page !== 'ask' && !entry && <button type="button" ref={launcher} hidden={chatOpen}
+      className="sari-launcher" aria-haspopup="dialog" aria-controls="sari-assistant"
+      aria-expanded={chatOpen} onClick={() => setChatOpen(true)} disabled={!store}
+      aria-label={t('Ask Sari, open chat assistant', 'Tanungin si Sari, buksan ang chat assistant')}>
+      <SariMascot /><span>{t('Ask Sari', 'Tanungin si Sari')}</span>
+    </button>}
+    {entry && store && <EntryDialog entry={entry} store={store} connected={connected} close={() => open(null)} saved={(receipt, savedEntry) => {
       open(null);
       setNotice({ receipt, entry: savedEntry });
       void refresh();

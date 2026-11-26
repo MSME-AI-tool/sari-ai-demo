@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { add, api, forecast, ledger, peso, readStockNotes, runout, shiftDay, shortDate, stockExample } from './data';
 import type { AskReply, Entry, Product, Store } from './data';
-import { Empty, Icon, Panel } from './ui';
+import { Empty, Icon, Panel, SummaryCards } from './ui';
 import { expenseLabels, LanguageSelect, localError, useLanguage } from './language';
 import { ProductPhoto, StockInsights, StockPlanner, StoreInsights } from './StoreTools';
 
@@ -100,7 +100,7 @@ export function Stock({ store, open }: PageProps) {
         <div className="catalog-actions">
           <button className="button primary" onClick={() => move(product, 'restock')}>+ Stock-in</button>
           <button className="button secondary" onClick={() => move(product, 'count')}>{t('Count', 'Bilang')}</button>
-          <details className="catalog-more"><summary aria-label={t('Item actions', 'Mga aksiyon sa item')}>⋯</summary>
+          <details className="catalog-more"><summary aria-label={t('More item actions', 'Iba pang aksiyon sa item')}><Icon name="more" /></summary>
             <div><a href={'#stock/history/' + encodeURIComponent(product.id)}>{t('Stock history', 'Stock history')}</a>
               <button type="button" onClick={() => {
                 setPlanner(product.id);
@@ -111,7 +111,7 @@ export function Stock({ store, open }: PageProps) {
         </div></div>
       </article>)}</div>
       {!products.length && <Empty>{t('No products match your filters.', 'Walang item na tugma sa mga salaan.')}</Empty>}
-      <a className="catalog-credits" href="/photo-credits.html">{t('Demo photo credits', 'Mga pinagmulan ng demo na litrato')}</a>
+      <a className="catalog-credits" href="/photo-credits.html">{t('Photo credits', 'Mga pinagmulan ng litrato')}</a>
     </section>
     <div className="stock-tools">
       <div id="stock-record"><Panel title={t('Record with Sari', 'Magtala kasama si Sari')} action={<img className="sari-icon" src="/sari.svg" alt="" />}>
@@ -136,12 +136,12 @@ export function Stock({ store, open }: PageProps) {
         onChange={event => { setActive(event.target.value); setSelectedMove(''); }}>
         <option value="">{t('All items', 'Lahat ng item')}</option>
         {store.products.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}</select>}>
-      <div className="table-scroll"><table><thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Product', 'Item')}</th>
+      <div className="table-scroll"><table className="records-table"><thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Product', 'Item')}</th>
         <th>{t('Entry', 'Tala')}</th><th>{t('Change', 'Pagbabago')}</th><th>{t('Stock after', 'Natira')}</th><th>{t('Note', 'Detalye')}</th></tr></thead>
         <tbody>{movements.slice(0, 100).map(row => <tr key={row.id} id={'movement-' + row.id} className={selectedMove === row.id ? 'record-highlight' : ''}>
-          <td>{shortDate(row.day, language)}</td><td><strong>{byId.get(row.product_id)?.name}</strong></td>
-          <td>{t(reasons[row.reason] ?? row.reason, filipinoReasons[row.reason] ?? row.reason)}</td>
-          <td>{row.change > 0 ? '+' : ''}{row.change}</td><td>{row.stock_after}</td><td>{row.note || '—'}</td>
+          <td data-label={t('Date', 'Petsa')}>{shortDate(row.day, language)}</td><td data-label={t('Product', 'Item')}><strong>{byId.get(row.product_id)?.name}</strong></td>
+          <td data-label={t('Entry', 'Tala')}>{t(reasons[row.reason] ?? row.reason, filipinoReasons[row.reason] ?? row.reason)}</td>
+          <td data-label={t('Change', 'Pagbabago')}>{row.change > 0 ? '+' : ''}{row.change}</td><td data-label={t('Stock after', 'Natira')}>{row.stock_after}</td><td data-label={t('Note', 'Detalye')}>{row.note || '—'}</td>
         </tr>)}</tbody></table>{!movements.length && <Empty>{t('No stock movements yet.', 'Wala pang pagbabago sa stock.')}</Empty>}</div>
       {movements.length > 100 && <p className="panel-footnote">{t('Showing the latest 100 entries. Select a product to narrow the list.',
         'Huling 100 tala ang ipinapakita. Pumili ng item para paliitin ang listahan.')}</p>}
@@ -174,6 +174,11 @@ export function Sales({ store, open }: PageProps) {
     <header className="page-heading"><div><h1>{t('Sales', 'Benta')}</h1>
       <p>{t('Record a checkout and review what sold.', 'Itala ang benta at suriin ang mga nabenta.')}</p></div>
       <button className="button primary" onClick={() => open({ kind: 'sale' })}><Icon name="plus" size={18} /> {t('Record sale', 'Itala ang benta')}</button></header>
+    <SummaryCards items={[
+      { label: period === '1' ? t('Today’s sales', 'Benta ngayong araw') : t('Sales shown', 'Mga ipinapakitang benta'), value: peso(add(sales, row => row.total)), tone: 'blue' },
+      { label: t('Cash sales', 'Mga bentang bayad agad'), value: peso(add(sales.filter(row => row.method === 'cash'), row => row.total)), tone: 'yellow' },
+      { label: t('Credit sales', 'Mga benta sa utang'), value: peso(add(sales.filter(row => row.method === 'credit'), row => row.total)) },
+    ]} />
     <div className="stock-tools">
       <Panel title={t('Record a sale with Sari', 'Itala ang benta kasama si Sari')}><Notebook open={open} store={store} area="sale" /></Panel>
       <StoreInsights store={store} />
@@ -192,12 +197,12 @@ export function Sales({ store, open }: PageProps) {
         onChange={event => { setPeriod(event.target.value); setSelected(null); }}>
         <option value="1">{t('Today', 'Ngayon')}</option><option value="7">{t('Last 7 days', 'Huling 7 araw')}</option>
         <option value="14">{t('Last 14 days', 'Huling 14 araw')}</option><option value="all">{t('All dates', 'Lahat ng petsa')}</option></select>}>
-      <div className="table-scroll"><table><thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Products', 'Mga item')}</th>
+      <div className="table-scroll"><table className="records-table"><thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Products', 'Mga item')}</th>
         <th>{t('Payment', 'Bayad')}</th><th>{t('Total', 'Kabuuan')}</th><th><span className="sr-only">{t('Details', 'Detalye')}</span></th></tr></thead>
-        <tbody>{sales.map(record => <tr key={record.id}><td>{shortDate(record.day, language)}</td>
-          <td><strong>{store.items.filter(item => item.sale_id === record.id).map(item =>
+        <tbody>{sales.map(record => <tr key={record.id}><td data-label={t('Date', 'Petsa')}>{shortDate(record.day, language)}</td>
+          <td data-label={t('Products', 'Mga item')}><strong>{store.items.filter(item => item.sale_id === record.id).map(item =>
             lookup.get(item.product_id) + ' × ' + item.quantity).join(', ')}</strong></td>
-          <td>{record.method === 'cash' ? t('Cash', 'Bayad agad') : t('Credit', 'Utang')}</td><td>{peso(record.total)}</td>
+          <td data-label={t('Payment', 'Bayad')}>{record.method === 'cash' ? t('Cash', 'Bayad agad') : t('Credit', 'Utang')}</td><td data-label={t('Total', 'Kabuuan')}>{peso(record.total)}</td>
           <td><a className="text-link" href={'#sales/entry/' + record.id}>{t('Details', 'Detalye')} <Icon name="chevron" size={15} /></a></td>
         </tr>)}</tbody>
       </table>{!sales.length && <Empty>{t('No sales in this period.', 'Walang benta sa panahong ito.')}</Empty>}</div>
@@ -211,10 +216,19 @@ export function Expenses({ store, open }: PageProps) {
   const [date, setDate] = useState('');
   const categories = [...new Set(store.expenses.map(expense => expense.category))].sort();
   const expenses = store.expenses.filter(expense => (!category || expense.category === category) && (!date || expense.day === date));
+  const expenseTotal = add(expenses, row => row.amount);
+  const largestCategory = [...new Set(expenses.map(row => row.category))]
+    .map(name => ({ name, total: add(expenses.filter(row => row.category === name), row => row.amount) }))
+    .sort((a, b) => b.total - a.total)[0];
   return <>
     <header className="page-heading"><div><h1>{t('Expenses', 'Gastos')}</h1>
       <p>{t('Record and review operating costs.', 'Itala at suriin ang gastos sa operasyon.')}</p></div>
       <button className="button primary" onClick={() => open({ kind: 'expense' })}><Icon name="plus" size={18} /> {t('Log expense', 'Itala ang gastos')}</button></header>
+    <SummaryCards items={[
+      { label: t('Expenses shown', 'Mga ipinapakitang gastos'), value: peso(expenseTotal), tone: 'yellow' },
+      { label: largestCategory ? t(largestCategory.name, expenseLabels[largestCategory.name] ?? largestCategory.name) : t('Largest category', 'Pinakamalaking kategorya'), value: peso(largestCategory?.total ?? 0) },
+      { label: t('Other costs', 'Iba pang gastos'), value: peso(expenseTotal - (largestCategory?.total ?? 0)) },
+    ]} />
     <div className="stock-tools"><Panel title={t('Record an expense with Sari', 'Itala ang gastos kasama si Sari')}>
       <Notebook open={open} store={store} area="expense" /></Panel><StoreInsights store={store} expenses /></div>
     <Panel title={t('Operating expenses', 'Gastos sa operasyon')} detail={peso(add(expenses, expense => expense.amount)) + ' · ' + expenses.length}
@@ -222,10 +236,10 @@ export function Expenses({ store, open }: PageProps) {
         onChange={event => setCategory(event.target.value)}><option value="">{t('All categories', 'Lahat ng kategorya')}</option>
         {categories.map(option => <option key={option} value={option}>{t(option, expenseLabels[option] ?? option)}</option>)}</select>
         <input type="date" aria-label={t('Expense date', 'Petsa ng gastos')} value={date} max={store.today} onChange={event => setDate(event.target.value)} /></div>}>
-      <div className="table-scroll"><table><thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Description', 'Detalye')}</th>
+      <div className="table-scroll"><table className="records-table"><thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Description', 'Detalye')}</th>
         <th>{t('Category', 'Kategorya')}</th><th>{t('Amount', 'Halaga')}</th></tr></thead>
-        <tbody>{expenses.map(expense => <tr key={expense.id}><td>{shortDate(expense.day, language)}</td><td><strong>{expense.description}</strong></td>
-          <td>{t(expense.category, expenseLabels[expense.category] ?? expense.category)}</td><td>{peso(expense.amount)}</td></tr>)}</tbody></table>
+        <tbody>{expenses.map(expense => <tr key={expense.id}><td data-label={t('Date', 'Petsa')}>{shortDate(expense.day, language)}</td><td data-label={t('Description', 'Detalye')}><strong>{expense.description}</strong></td>
+          <td data-label={t('Category', 'Kategorya')}>{t(expense.category, expenseLabels[expense.category] ?? expense.category)}</td><td data-label={t('Amount', 'Halaga')}>{peso(expense.amount)}</td></tr>)}</tbody></table>
         {!expenses.length && <Empty>{t('No expenses match these filters.', 'Walang gastos na tugma sa mga salaan.')}</Empty>}</div>
     </Panel>
   </>;
@@ -242,6 +256,11 @@ export function Ledger({ store, open }: PageProps) {
     <header className="page-heading"><div><h1>{t('Ledger', 'Utang')}</h1><p>{t('Review customer credit and repayments.', 'Suriin ang utang at bayad ng mga mamimili.')}</p></div>
       <button className="button primary" disabled={!customers.some(({ balance }) => balance > 0)}
         onClick={() => open({ kind: 'payment' })}><Icon name="plus" size={18} /> {t('Record repayment', 'Itala ang bayad')}</button></header>
+    <SummaryCards items={[
+      { label: t('Still owed', 'Natitirang utang'), value: peso(add(customers, row => row.balance)), tone: 'blue' },
+      { label: t('Credit sales', 'Mga benta sa utang'), value: peso(add(store.sales.filter(row => row.method === 'credit'), row => row.total)), tone: 'yellow' },
+      { label: t('Repayments received', 'Natanggap na bayad sa utang'), value: peso(add(store.payments, row => row.amount)) },
+    ]} />
     <div className="stock-tools"><Panel title={t('Customer balances', 'Balanse ng mga mamimili')}
       detail={t('Outstanding', 'Natitirang utang') + ' · ' + peso(add(customers, customer => customer.balance))}>
       {customers.length ? <div className="rank-list">{customers.map(({ name, balance }) => <div key={name}>
@@ -251,10 +270,10 @@ export function Ledger({ store, open }: PageProps) {
       </div>)}</div> : <Empty>{t('No customer balances yet.', 'Wala pang utang.')}</Empty>}
     </Panel><Panel title={t('Record a repayment with Sari', 'Itala ang bayad kasama si Sari')}>
       <Notebook store={store} open={open} area="payment" /></Panel></div>
-    <Panel title={t('Ledger history', 'Mga tala ng utang at bayad')}><div className="table-scroll"><table>
+    <Panel title={t('Ledger history', 'Mga tala ng utang at bayad')}><div className="table-scroll"><table className="records-table">
       <thead><tr><th>{t('Date', 'Petsa')}</th><th>{t('Customer', 'Mamimili')}</th><th>{t('Entry', 'Tala')}</th><th>{t('Change', 'Pagbabago')}</th></tr></thead>
-      <tbody>{history.map(entry => <tr key={entry.id}><td>{shortDate(entry.day, language)}</td><td><strong>{entry.customer}</strong></td>
-        <td>{entry.type}</td><td>{peso(entry.amount)}</td></tr>)}</tbody></table>
+      <tbody>{history.map(entry => <tr key={entry.id}><td data-label={t('Date', 'Petsa')}>{shortDate(entry.day, language)}</td><td data-label={t('Customer', 'Mamimili')}><strong>{entry.customer}</strong></td>
+        <td data-label={t('Entry', 'Tala')}>{entry.type}</td><td data-label={t('Change', 'Pagbabago')}>{peso(entry.amount)}</td></tr>)}</tbody></table>
       {!history.length && <Empty>{t('No ledger entries yet.', 'Wala pang tala.')}</Empty>}</div></Panel>
   </>;
 }
@@ -304,10 +323,10 @@ export function Ask({ open, store }: PageProps) {
       setMessage(question);
     } finally { request.current = null; setPending(''); setStreamed(''); }
   }
-  return <>
-    <header className="page-heading"><div><h1>{t('Ask Sari', 'Tanungin si Sari')}</h1>
+  return <div className="ask-page">
+    <header className="page-heading"><div><h1 id="ask-page-title">{t('Ask Sari', 'Tanungin si Sari')}</h1>
       <p>{t('Ask about store figures or get help with a task.', 'Magtanong tungkol sa mga tala o humingi ng tulong sa gawain.')}</p></div></header>
-    <Panel title={t('Your conversation', 'Pag-uusap')} action={<img className="sari-icon" src="/sari.svg" alt="" />}>
+    <Panel className="ask-panel" title={t('Your conversation', 'Pag-uusap')} action={<img className="sari-icon" src="/sari.svg" alt="" />}>
       {store.ai_configured === false && <p className="notice" role="status">{t(
         'Live AI is disconnected. Sari can still check store records, guide you through the app, and prepare common drafts.',
         'Hindi nakakonekta ang Live AI. Maaari pa ring sumuri si Sari ng mga tala, gumabay sa app, at gumawa ng mga karaniwang draft.',
@@ -319,6 +338,10 @@ export function Ask({ open, store }: PageProps) {
       <div className="suggestions">{examples.map(question => <button type="button" key={question}
         className="button secondary" disabled={!!pending} onClick={() => void reply(question, true)}>{question}</button>)}</div>
       <div className="thread" ref={conversation} aria-live="polite" aria-label={t('Conversation messages', 'Mga mensahe')} tabIndex={0}>
+        {!thread.length && !pending && <div className="chat-welcome">
+          <img src="/sari.svg" alt="" /><h3>{t('How can I help?', 'Paano ako makatutulong?')}</h3>
+          <p>{t('Choose a question above, or type your own below.', 'Pumili ng tanong sa itaas, o mag-type sa ibaba.')}</p>
+        </div>}
         {thread.map(({ question, answer }, index) => <div key={index}><div className="question">{question}</div>
           <div className="answer"><img className="sari-icon" src="/sari.svg" alt="" /><div>
             <p className="answer-source"><strong>Sari</strong> · {answer.source === 'external' ? t('Live AI', 'Live AI') :
@@ -358,10 +381,10 @@ export function Ask({ open, store }: PageProps) {
           placeholder={t('Ask about your store', 'Magtanong tungkol sa tindahan')} maxLength={500} required />
         <button className="button primary" disabled={!!pending || !message.trim()}>{t('Ask', 'Magtanong')} <Icon name="arrow" size={18} /></button>
       </form>
-      <p className="panel-footnote">{t('Use sample data. Questions and relevant store figures go to the AI provider when connected.',
-        'Gumamit ng halimbawang datos. Ipinapadala ang tanong at kaugnay na bilang sa AI provider kapag nakakonekta.')}</p>
+      <p className="panel-footnote">{t('Questions and relevant store figures go to the AI provider when connected.',
+        'Ipinapadala ang tanong at kaugnay na bilang sa AI provider kapag nakakonekta.')}</p>
     </Panel>
-  </>;
+  </div>;
 }
 
 export function More() {

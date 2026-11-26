@@ -124,8 +124,11 @@ def prepare_ask(entry):
 
 def ask_store(entry, on_delta=None, prepared=None):
     snapshot, question, length, mode, language, context = prepared if prepared is not None else prepare_ask(entry)
-    if entry.get("capture") in ("receipt", "product"):
-        return agents.capture(snapshot, question, entry["capture"], language)
+    record_type = entry.get("record_type", "auto")
+    if record_type not in ("auto", "sale", "restock", "count", "waste"):
+        raise store.StoreError("Choose a valid entry type.")
+    if entry.get("capture") in ("receipt", "record", "product") or record_type != "auto":
+        return agents.capture(snapshot, question, entry.get("capture", "record"), language, record_type)
     answer = agents.ask(snapshot, question, length, mode, language, context=context, on_delta=on_delta)
     if answer["agent"] in ("insights", "forecast") and answer["source"] != "guide" and not answer.get("draft"):
         answer["view"] = agents.response_view(snapshot, length, answer["agent"], question)

@@ -6,7 +6,9 @@ const icons = {
   sales: 'M5 3h14v18l-3-2-4 2-4-2-3 2zm4 5h6m-6 4h6',
   stock: 'm3 7 9-4 9 4v10l-9 4-9-4zm0 0 9 4 9-4m-9 4v10m-4.5-16L17 9',
   ai: 'M12 2 9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5zM19 2v4m-2-2h4',
-  more: 'M5 7h14M5 12h14M5 17h14',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
+  microphone: 'M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0zM5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8',
+  camera: 'M3 7h4l2-3h6l2 3h4v14H3zM16 13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
   moon: 'M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z',
   sun: 'M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
   ledger: 'M5 4h14v16H5zM8 4v16m3-11h5m-5 4h5',
@@ -49,6 +51,15 @@ export function Panel({ title, detail, action, children, className = '' }: {
 
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="empty">{children}</p>;
+}
+
+export function SummaryCards({ items }: { items: {
+  label: string; value: string; detail?: string; tone?: 'blue' | 'yellow';
+}[] }) {
+  return <div className="summary-cards">{items.map(item => <section key={item.label}
+    className={'summary-card' + (item.tone ? ' summary-' + item.tone : '')}>
+    <h2>{item.label}</h2><strong>{item.value}</strong>{item.detail && <p>{item.detail}</p>}
+  </section>)}</div>;
 }
 
 export function Delta({ current, previous }: { current: number; previous: number }) {

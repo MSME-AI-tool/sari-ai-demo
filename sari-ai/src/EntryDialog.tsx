@@ -27,8 +27,8 @@ async function photoThumbnail(file: File) {
   } finally { image.close(); }
 }
 
-export default function EntryDialog({ entry, store, close, saved }: {
-  entry: Entry; store: Store; close: () => void; saved: (receipt: Receipt, entry: Entry) => void;
+export default function EntryDialog({ entry, store, connected, close, saved }: {
+  entry: Entry; store: Store; connected: boolean; close: () => void; saved: (receipt: Receipt, entry: Entry) => void;
 }) {
   const { t } = useLanguage();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -71,7 +71,7 @@ export default function EntryDialog({ entry, store, close, saved }: {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || readingPhoto) return;
+    if (busy || readingPhoto || !connected) return;
     setBusy(true); setError('');
     const form = new FormData(event.currentTarget);
     const value = (name: string) => String(form.get(name) ?? '').trim();
@@ -101,9 +101,10 @@ export default function EntryDialog({ entry, store, close, saved }: {
     catch (problem) { setError(localError(t, problem)); setBusy(false); }
   }
 
-  return <dialog ref={dialog} className="entry-dialog" onCancel={event => { event.preventDefault(); if (!busy) close(); }}>
+  return <dialog ref={dialog} className="entry-dialog" aria-labelledby="entry-title"
+    onCancel={event => { event.preventDefault(); if (!busy) close(); }}>
     <form onSubmit={submit}>
-      <header className="dialog-header"><h2>{title}</h2><button type="button" className="icon-button"
+      <header className="dialog-header"><h2 id="entry-title">{title}</h2><button type="button" className="icon-button"
         aria-label={t('Close', 'Isara')} onClick={close} disabled={busy}><Icon name="close" /></button></header>
       <div className="dialog-fields">
         {entry.original && <div className="draft-header"><small>{t('Original entry', 'Orihinal na tala')}</small>
@@ -190,12 +191,13 @@ export default function EntryDialog({ entry, store, close, saved }: {
               .map(({ name, balance }) => <option key={name} value={name}>{name} · {peso(balance)}</option>)}</select></label>
           <label>{t('Amount (₱)', 'Halaga (₱)')}<input name="amount" type="number" defaultValue={entry.amount}
             min="0.01" max="100000" step="0.01" required /></label></div>}
+        {!connected && <p className="notice warning" role="status">{t('Reconnect to save this entry.', 'Kumonekta muli para mai-save ang tala.')}</p>}
         {error && <p className="form-error" role="alert">{error}</p>}
       </div>
       <footer className="dialog-footer">
         {isSale && <strong className="sale-total">{method === 'credit' ? t('Credit', 'Utang') : t('Cash', 'Bayad agad')} · {peso(total)}</strong>}
         <button type="button" className="button secondary" onClick={close} disabled={busy}>{t('Cancel', 'Bumalik')}</button>
-        <button className="button primary" disabled={busy || readingPhoto}>{busy ? t('Saving…', 'Sine-save…')
+        <button className="button primary" disabled={busy || readingPhoto || !connected}>{busy ? t('Saving…', 'Sine-save…')
           : t('Confirm and save', 'Kumpirmahin at i-save')}</button>
       </footer>
     </form>
