@@ -65,3 +65,11 @@ class LiveConversationTests(unittest.TestCase):
                 self.assertNotIn('live_ai', answer)
                 self.assertEqual(answer['text'], 'Here is an explanation.')
                 self.assertIn('recent_conversation', model.call_args.args[1])
+
+    def test_conversation_language_follows_the_latest_message_before_the_ui_setting(self):
+        for question, setting, expected in [('What name did I mention?', 'fil', 'English'),
+                                             ('Bakit paulit ulit ang sagot mo?', 'en', 'Filipino'),
+                                             ('Hi', 'fil', 'Filipino')]:
+            with self.subTest(question=question), patch('agents.llm.complete', return_value=('A reply.', 'external')) as model:
+                agents.ask(self.snapshot, question, 7, 'auto', setting)
+                self.assertTrue(model.call_args.args[0].endswith(f'Reply in {expected}.'))
