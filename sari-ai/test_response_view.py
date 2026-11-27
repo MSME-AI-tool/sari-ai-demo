@@ -6,6 +6,25 @@ import main
 
 
 class ResponseViewTests(unittest.TestCase):
+    def test_custom_report_dates_are_used_without_changing_inventory_date(self):
+        with patch('main.store.snapshot', return_value=self.store), patch('agents.llm.complete', return_value=(None, 'unconfigured')):
+            request = {'question': 'Show sales', 'agent': 'insights', 'period': 31, 'start_date': '2026-10-25', 'end_date': '2026-11-23'}
+            prepared = main.prepare_ask(request)
+            self.assertEqual(prepared[0]['today'], '2026-11-24')
+            answer = main.ask_store(request, prepared=prepared)
+        self.assertEqual(answer['view']['start'], '2026-10-25')
+        self.assertEqual(answer['view']['end'], '2026-11-23')
+        self.assertEqual(answer['view']['sales'], 2000)
+        self.assertEqual(answer['view']['cashSales'], 0)
+        self.assertEqual(answer['view']['forecastEnd'], '2026-11-23')
+
+    def test_wide_periods_and_custom_date_validation(self):
+        with patch('main.store.snapshot', return_value=self.store):
+            self.assertEqual(main.prepare_ask({'question': 'Show sales', 'period': 183})[2], 183)
+            for start, end in [('2026-11-25', '2026-11-26'), ('2026-11-24', '2026-10-01'), ('2026-02-30', '2026-03-02')]:
+                with self.subTest(start=start), self.assertRaises(main.store.StoreError):
+                    main.prepare_ask({'question': 'Show sales', 'period': 7, 'start_date': start, 'end_date': end})
+
     def setUp(self):
         self.store = {
             "today": "2026-11-24",

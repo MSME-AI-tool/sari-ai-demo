@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { api, ledger, peso } from './data';
+import { api, ledger, peso, readStockNotes, stockExample } from './data';
 import type { Entry, Line, Receipt, Store } from './data';
 import { expenseLabels, localError, useLanguage } from './language';
 import { Icon } from './ui';
+import Notebook from './Notebook';
 
 const routes = {
   sale: 'sales', product: 'products', stock: 'stock', expense: 'expenses', payment: 'payments',
@@ -27,11 +28,92 @@ async function photoThumbnail(file: File) {
   } finally { image.close(); }
 }
 
-export default function EntryDialog({ entry, store, connected, close, saved }: {
+type EntryDialogProps = {
   entry: Entry; store: Store; connected: boolean; close: () => void; saved: (receipt: Receipt, entry: Entry) => void;
-}) {
+};
+
+export default function EntryDialog(props: EntryDialogProps) {
+  const { entry, store, connected, close } = props;
   const { t } = useLanguage();
   const dialog = useRef<HTMLDialogElement>(null);
+  const [mode, setMode] = useState<'manual' | 'sari'>(entry.inputMode ?? 'manual');
+  const [assistedOpened, setAssistedOpened] = useState(entry.inputMode === 'sari');
+  const [draft, setDraft] = useState<Entry | null>(null);
+  const [manualBusy, setManualBusy] = useState(false);
+  const [assistedBusy, setAssistedBusy] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const canAssist = ['sale', 'stock', 'expense', 'payment'].includes(entry.kind);
+  const busy = manualBusy || assistedBusy || reviewBusy;
+  const current = mode === 'sari' && draft ? draft : entry;
+  const title = {
+    sale: t('Record a sale', 'Itala ang benta'), product: t('Add a product', 'Magdagdag ng item'),
+    stock: t('Log stock', 'Itala ang stock'), expense: t('Log an expense', 'Itala ang gastos'),
+    payment: t('Record a repayment', 'Itala ang bayad'), 'sale-correction': t('Correct sale', 'Iwasto ang benta'),
+    'product-details': t('Edit photo or cost', 'Baguhin ang litrato o puhunan'),
+  }[current.kind];
+  useEffect(() => { dialog.current?.showModal(); }, []);
+  function reviewDraft(next: Entry) {
+    setDraft(next);
+    requestAnimationFrame(() => dialog.current?.querySelector<HTMLElement>('.assisted-review input, .assisted-review select')?.focus());
+  }
+  function selectMode(next: 'manual' | 'sari') {
+    if (busy) return;
+    setMode(next);
+    if (next === 'sari') setAssistedOpened(true);
+  }
+  return <dialog ref={dialog} className="entry-dialog" aria-labelledby="entry-title"
+    onCancel={event => { event.preventDefault(); if (!manualBusy && !reviewBusy) close(); }}>
+    <div className="entry-dialog-layout">
+      <header className="dialog-header"><h2 id="entry-title">{title}</h2><button type="button" className="icon-button"
+        aria-label={t('Close', 'Isara')} onClick={close} disabled={manualBusy || reviewBusy}><Icon name="close" /></button></header>
+      {canAssist && <div className="entry-method" role="group" aria-label={t('Entry method', 'Paraan ng pagtatala')}>
+        <button type="button" aria-pressed={mode === 'manual'} disabled={busy} onClick={() => selectMode('manual')}>{t('Manual', 'Manu-mano')}</button>
+        <button type="button" aria-pressed={mode === 'sari'} disabled={busy} onClick={() => selectMode('sari')}>{t('With Sari', 'Kasama si Sari')}</button>
+      </div>}
+      <div className="entry-content" hidden={mode !== 'manual'}>
+        <ManualEntryForm {...props} onBusyChange={setManualBusy} />
+      </div>
+      {canAssist && assistedOpened && <div className="entry-content" hidden={mode !== 'sari'}>
+        <div className="assisted-entry dialog-fields" hidden={!!draft}>
+          <p>{t('Describe the entry, speak, or read a photo. Sari will prepare a draft for you to check.',
+            'Ilarawan ang tala, magsalita, o magbasa ng litrato. Gagawa si Sari ng draft na susuriin mo.')}</p>
+          <Notebook open={reviewDraft} store={store} area={entry.kind as 'sale' | 'stock' | 'expense' | 'payment'} onBusyChange={setAssistedBusy} />
+          {entry.kind === 'stock' && <BatchStockEntry store={store} open={reviewDraft} disabled={assistedBusy} />}
+          {!connected && <p className="notice warning" role="status">{t('Reconnect to review and save entries.', 'Kumonekta muli para masuri at ma-save ang mga tala.')}</p>}
+        </div>
+        {draft && <div className="assisted-review"><div className="entry-review-back">
+          <button type="button" className="text-link" disabled={reviewBusy} onClick={() => setDraft(null)}>{t('Back to Sari', 'Bumalik kay Sari')}</button>
+        </div><ManualEntryForm {...props} entry={draft} onBusyChange={setReviewBusy} /></div>}
+      </div>}
+    </div>
+  </dialog>;
+}
+
+function BatchStockEntry({ store, open, disabled }: { store: Store; open: (entry: Entry) => void; disabled: boolean }) {
+  const { t } = useLanguage();
+  const [notes, setNotes] = useState('');
+  const [reason, setReason] = useState<'restock' | 'count' | 'waste'>('count');
+  const [error, setError] = useState('');
+  function review(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setError('');
+    try { open({ kind: 'stock', reason, lines: readStockNotes(notes, store.products) }); }
+    catch (problem) { setError(localError(t, problem)); }
+  }
+  return <details className="batch-import"><summary>{t('Paste multiple notebook rows', 'Mag-paste ng maraming linya')}</summary>
+    <form className="notebook" onSubmit={review}><fieldset disabled={disabled}>
+      <label>{t('Stock entry type', 'Uri ng tala sa stock')}<select value={reason} onChange={event => setReason(event.target.value as typeof reason)}>
+        <option value="count">{t('Physical count', 'Aktuwal na bilang')}</option><option value="restock">Stock-in</option>
+        <option value="waste">{t('Wastage', 'Sira o tapon')}</option></select></label>
+      <label>{t('Product, quantity, optional note', 'Item, bilang, opsyonal na tala')}<textarea rows={4} value={notes}
+        onChange={event => setNotes(event.target.value)} placeholder={stockExample} required maxLength={30000} /></label>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <button className="button primary">{t('Review stock entries', 'Suriin ang mga tala')} <Icon name="arrow" size={17} /></button>
+    </fieldset></form></details>;
+}
+
+function ManualEntryForm({ entry, store, connected, close, saved, onBusyChange }: EntryDialogProps & { onBusyChange: (busy: boolean) => void }) {
+  const { t } = useLanguage();
+  const customerListId = useId();
   const [lines, setLines] = useState(entry.lines ?? [emptyLine()]);
   const [reason, setReason] = useState(entry.reason ?? 'restock');
   const [method, setMethod] = useState(entry.sale?.method ?? entry.method ?? 'cash');
@@ -47,14 +129,7 @@ export default function EntryDialog({ entry, store, connected, close, saved }: {
   const original = new Map(store.items.filter(item => item.sale_id === entry.sale?.id).map(item => [item.product_id, item]));
   const total = lines.reduce((sum, line) => sum + (original.get(line.product_id)?.price ?? catalog.get(line.product_id)?.price ?? 0)
     * (Number(line.quantity) || 0), 0);
-  const title = {
-    sale: t('Record a sale', 'Itala ang benta'), product: t('Add a product', 'Magdagdag ng item'),
-    stock: t('Log stock', 'Itala ang stock'), expense: t('Log an expense', 'Itala ang gastos'),
-    payment: t('Record a repayment', 'Itala ang bayad'), 'sale-correction': t('Correct sale', 'Iwasto ang benta'),
-    'product-details': t('Edit photo or cost', 'Baguhin ang litrato o puhunan'),
-  }[entry.kind];
-
-  useEffect(() => { dialog.current?.showModal(); }, []);
+  useEffect(() => { onBusyChange(busy || readingPhoto); }, [busy, readingPhoto, onBusyChange]);
   function update(index: number, patch: Partial<Line>) {
     setLines(current => current.map((line, i) => i === index ? { ...line, ...patch } : line));
   }
@@ -101,11 +176,7 @@ export default function EntryDialog({ entry, store, connected, close, saved }: {
     catch (problem) { setError(localError(t, problem)); setBusy(false); }
   }
 
-  return <dialog ref={dialog} className="entry-dialog" aria-labelledby="entry-title"
-    onCancel={event => { event.preventDefault(); if (!busy) close(); }}>
-    <form onSubmit={submit}>
-      <header className="dialog-header"><h2 id="entry-title">{title}</h2><button type="button" className="icon-button"
-        aria-label={t('Close', 'Isara')} onClick={close} disabled={busy}><Icon name="close" /></button></header>
+  return <form className="manual-entry-form" onSubmit={submit}>
       <div className="dialog-fields">
         {entry.original && <div className="draft-header"><small>{t('Original entry', 'Orihinal na tala')}</small>
           <blockquote>{entry.original}</blockquote><div className="sari-byline"><img src="/sari.svg" alt="" />
@@ -176,8 +247,8 @@ export default function EntryDialog({ entry, store, connected, close, saved }: {
           {isCorrection && <label>{t('Reason for correction', 'Dahilan ng pagwawasto')}<input name="correction" maxLength={200} required /></label>}
         </>}
         {entry.kind === 'sale' && method === 'credit' && <label>{t('Customer name', 'Pangalan ng mamimili')}
-          <input name="customer" defaultValue={entry.customer} list="customers" maxLength={100} required />
-          <datalist id="customers">{customers.map(({ name }) => <option key={name} value={name} />)}</datalist></label>}
+          <input name="customer" defaultValue={entry.customer} list={customerListId} maxLength={100} required />
+          <datalist id={customerListId}>{customers.map(({ name }) => <option key={name} value={name} />)}</datalist></label>}
         {entry.kind === 'expense' && <>
           <label>{t('Description', 'Detalye')}<input name="description" defaultValue={entry.description} maxLength={100} required /></label>
           <div className="field-grid"><label>{t('Category', 'Kategorya')}<select name="category" defaultValue={entry.category}>
@@ -200,6 +271,5 @@ export default function EntryDialog({ entry, store, connected, close, saved }: {
         <button className="button primary" disabled={busy || readingPhoto || !connected}>{busy ? t('Saving…', 'Sine-save…')
           : t('Confirm and save', 'Kumpirmahin at i-save')}</button>
       </footer>
-    </form>
-  </dialog>;
+    </form>;
 }

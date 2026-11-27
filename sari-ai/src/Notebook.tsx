@@ -11,8 +11,8 @@ import type { VoiceWindow } from './dictation';
 type Mode = 'note' | 'record' | 'product';
 type RecordType = 'auto' | 'sale' | 'restock' | 'count' | 'waste';
 
-export default function Notebook({ open, store, area = 'stock' }: {
-  open: (entry: Entry) => void; store: Store; area?: 'stock' | 'sale' | 'expense' | 'payment';
+export default function Notebook({ open, store, area = 'stock', onBusyChange }: {
+  open: (entry: Entry) => void; store: Store; area?: 'stock' | 'sale' | 'expense' | 'payment'; onBusyChange?: (busy: boolean) => void;
 }) {
   const { language, t } = useLanguage();
   const [note, setNote] = useState('');
@@ -23,6 +23,7 @@ export default function Notebook({ open, store, area = 'stock' }: {
   const [pending, setPending] = useState(false);
   const [listening, setListening] = useState(false);
   const [stopping, setStopping] = useState(false);
+  useEffect(() => { onBusyChange?.(pending || listening); }, [pending, listening, onBusyChange]);
   const [interim, setInterim] = useState('');
   const [recordType, setRecordType] = useState<RecordType>('auto');
   const [photo, setPhoto] = useState('');

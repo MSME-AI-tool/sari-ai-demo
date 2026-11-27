@@ -110,15 +110,23 @@ def create_payment(entry):
 
 def prepare_ask(entry):
     question = text(entry, "question", 4000)
-    length = number(entry, "period", 1, 14)
+    length = number(entry, "period", 1, 36_600)
     mode = text(entry, "agent", 20, required=False) or "auto"
     language = "fil" if entry.get("language") == "fil" else "en"
     context = text(entry, "context", 4000, required=False)
-    if length not in {1, 7, 14}:
-        raise store.StoreError("Choose today, 7 days, or 14 days.")
     if mode != "auto" and mode not in agents.AGENTS:
         raise store.StoreError("Choose a valid agent.")
     snapshot = store.snapshot()
+    if entry.get('start_date') is not None or entry.get('end_date') is not None:
+        try:
+            start = date.fromisoformat(text(entry, 'start_date', 10))
+            end = date.fromisoformat(text(entry, 'end_date', 10))
+            length = (end - start).days + 1
+            if str(start) != entry['start_date'] or str(end) != entry['end_date'] or not 1 <= length <= 36_600 or str(end) > snapshot['today']:
+                raise ValueError
+        except (ValueError, TypeError):
+            raise store.StoreError('Choose valid dates in order, ending today or earlier.') from None
+        snapshot = {**snapshot, '_report_end': str(end)}
     return snapshot, question, length, mode, language, context
 
 

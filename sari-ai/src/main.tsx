@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client';
 import Home from './Home';
 import EntryDialog from './EntryDialog';
 import SariMascot from './SariMascot';
-import { Ask, Expenses, Ledger, More, Sales, Stock } from './Pages';
+import { Ask, Expenses, Forecasting, RestockPlanning, Ledger, More, Sales, SalesHistory, Stock, StockHistory } from './Pages';
+import { allPages, pages, records, resolveRoute } from './navigation';
+import type { Page } from './navigation';
 import { api } from './data';
 import { peso } from './data';
 import type { Entry, Receipt, Store } from './data';
@@ -12,27 +14,13 @@ import type { IconName } from './ui';
 import { LanguageProvider, LanguageSelect, localError, useLanguage } from './language';
 import './styles.css';
 
-const pages = [
-  { id: 'home', label: 'Home', icon: 'home' },
-  { id: 'sales', label: 'Sales', icon: 'sales' },
-  { id: 'stock', label: 'Stock', icon: 'stock' },
-  { id: 'ask', label: 'Ask Sari', icon: 'ai' },
-  { id: 'more', label: 'More', icon: 'more' },
-] as const;
-const records = [
-  { id: 'expenses', label: 'Expenses', icon: 'expense' },
-  { id: 'ledger', label: 'Ledger', icon: 'ledger' },
-] as const;
-const allPages = [...pages, ...records];
-type Page = typeof allPages[number]['id'];
 const filipinoPages: Record<Page, string> = {
   home: 'Tindahan', sales: 'Benta', stock: 'Stock', ask: 'Tanungin si Sari', more: 'Iba pa', expenses: 'Gastos', ledger: 'Utang',
+  forecasting: 'Pagtataya', 'stock-history': 'Kasaysayan ng Stock', 'sales-history': 'Kasaysayan ng Benta',
+  'restock-planner': 'Plano ng Pagdagdag ng Stock',
 };
 
-function readPage(): Page {
-  const route = window.location.hash.slice(1).split('/')[0];
-  return allPages.find(({ id }) => route === id)?.id ?? 'home';
-}
+const readLocation = () => window.location.hash;
 function onPageChange(callback: () => void) {
   window.addEventListener('hashchange', callback);
   return () => window.removeEventListener('hashchange', callback);
@@ -70,7 +58,10 @@ function App() {
     <Icon name={dark ? 'sun' : 'moon'} size={19} />
     {!compact && <span>{t('Dark mode', 'Madilim na tema')}</span>}
   </button>;
-  const page = useSyncExternalStore(onPageChange, readPage);
+  const location = useSyncExternalStore(onPageChange, readLocation);
+  const route = resolveRoute(location);
+  const page = route.page;
+  const parentPage = page === 'sales-history' ? 'sales' : page === 'stock-history' ? 'stock' : page === 'restock-planner' ? 'forecasting' : page;
   const connected = useSyncExternalStore(onConnectivityChange, () => navigator.onLine);
   const [store, setStore] = useState<Store | null>(null);
   const [problem, setProblem] = useState('');
@@ -119,15 +110,19 @@ function App() {
       window.removeEventListener('focus', refresh);
     };
   }, [refresh]);
-  useEffect(() => { window.scrollTo(0, 0); }, [page]);
+  useEffect(() => { window.scrollTo(0, 0); }, [location]);
 
   const current = allPages.find(({ id }) => page === id) ?? pages[0];
   const controls = store ? { store, open: openEntry } : null;
   let content;
   if (controls) {
-    if (page === 'home') content = <Home {...controls} />;
+    if (page === 'home') content = <Home {...controls} view={route.homeView} />;
     else if (page === 'sales') content = <Sales {...controls} />;
     else if (page === 'stock') content = <Stock {...controls} />;
+    else if (page === 'stock-history') content = <StockHistory key={location} store={controls.store} productId={route.productId} movementId={route.movementId} />;
+    else if (page === 'sales-history') content = <SalesHistory key={location} {...controls} saleId={route.saleId} initialPeriod={route.period} initialRange={route.range} />;
+    else if (page === 'forecasting') content = <Forecasting key={route.productId} store={controls.store} productId={route.productId} />;
+    else if (page === 'restock-planner') content = <RestockPlanning key={route.productId} store={controls.store} productId={route.productId} />;
     else if (page === 'ask') content = null;
     else if (page === 'expenses') content = <Expenses {...controls} />;
     else if (page === 'ledger') content = <Ledger {...controls} />;
@@ -144,7 +139,7 @@ function App() {
       <div className="store-identity">
         <Icon name="shop" /><strong>{t('Your Store', 'Ang Tindahan Mo')}</strong></div>
       <nav className="side-nav" aria-label={t('Main navigation', 'Pangunahing menu')}>
-        {pages.map((link) => <NavLink {...link} key={link.id} active={page === link.id} />)}
+        {pages.map((link) => <NavLink {...link} key={link.id} active={parentPage === link.id} />)}
       </nav>
       <nav className="side-nav records-nav" aria-label={t('Store records', 'Mga tala ng tindahan')}>
         <span>{t('RECORDS', 'MGA TALA')}</span>{records.map((link) => <NavLink {...link} key={link.id} active={page === link.id} />)}
@@ -164,8 +159,8 @@ function App() {
           }</span>
           <LanguageSelect />
           {themeToggle(true)}
-          <button className="button primary quick-sale" disabled={!store || !connected}
-            onClick={() => openEntry({ kind: 'sale' })}><Icon name="plus" size={18} /> {t('Record sale', 'Itala ang benta')}</button>
+          {parentPage !== 'sales' && page !== 'home' && <button className="button primary quick-sale" disabled={!store || !connected}
+            onClick={() => openEntry({ kind: 'sale' })}><Icon name="plus" size={18} /> {t('Record Sale', 'Itala ang Benta')}</button>}
         </div>
       </header>
       <main id="content" tabIndex={-1} className="content">
@@ -197,8 +192,8 @@ function App() {
       </main>
     </div>
     <nav className="bottom-nav" aria-label={t('Mobile navigation', 'Menu ng telepono')}>
-      {pages.map((link) => <NavLink {...link} key={link.id}
-        active={page === link.id || (link.id === 'more' && records.some((record) => record.id === page))} />)}
+      {pages.filter(link => link.id !== 'ask').map((link) => <NavLink {...link} key={link.id}
+        active={parentPage === link.id || (link.id === 'more' && (page === 'ask' || records.some((record) => record.id === page)))} />)}
     </nav>
     {page !== 'ask' && !entry && <button type="button" ref={launcher} hidden={chatOpen}
       className="sari-launcher" aria-haspopup="dialog" aria-controls="sari-assistant"

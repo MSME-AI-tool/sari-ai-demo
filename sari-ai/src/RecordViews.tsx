@@ -19,13 +19,13 @@ export function ComparisonBars({ rows, label }: { rows: BarRow[]; label: string 
   </ul> : <Empty>{t('No recorded activity in this period.', 'Walang naitalang galaw sa panahong ito.')}</Empty>;
 }
 
-export function ProductRanking({ products }: { products: RankedProduct[] }) {
+export function ProductRanking({ products, title }: { products: RankedProduct[]; title?: string }) {
   const { t } = useLanguage();
   const [measure, setMeasure] = useState<'sales' | 'quantity'>('sales');
   const ranked = [...products].sort((a, b) => b[measure] - a[measure] || a.name.localeCompare(b.name)).slice(0, 5);
   return <div className="record-chart">
     <div className="chart-heading">
-      <h3>{t('Top products', 'Mga nangungunang item')}</h3>
+      <h3>{title ?? t('Top Products', 'Mga Nangungunang Item')}</h3>
       <div className="chart-switch" role="group" aria-label={t('Rank products by', 'Ayusin ang mga item ayon sa')}>
         <button type="button" aria-pressed={measure === 'sales'} onClick={() => setMeasure('sales')}>{t('Sales ₱', 'Benta ₱')}</button>
         <button type="button" aria-pressed={measure === 'quantity'} onClick={() => setMeasure('quantity')}>{t('Units', 'Bilang')}</button>
@@ -39,11 +39,25 @@ export function ProductRanking({ products }: { products: RankedProduct[] }) {
 
 export function ExpenseBreakdown({ categories }: { categories: { category: string; amount: number }[] }) {
   const { t } = useLanguage();
+  const rows = categories.filter(row => row.amount > 0);
+  const total = rows.reduce((sum, row) => sum + row.amount, 0);
+  let cumulative = 0;
   return <div className="record-chart">
-    <h3>{t('Where the money went', 'Saan napunta ang pera')}</h3>
-    <ComparisonBars label={t('Recorded operating expenses by category', 'Mga naitalang gastos ayon sa kategorya')}
-      rows={categories.map(row => ({ name: t(row.category, expenseLabels[row.category] ?? row.category),
-        value: row.amount, display: peso(row.amount) }))} />
+    <h3>{t('Where the Money Went', 'Saan Napunta ang Pera')}</h3>
+    {total > 0 ? <div className="expense-distribution"><svg className="expense-pie" viewBox="0 0 220 220" role="img" aria-label={t('Operating expenses by category', 'Gastos sa operasyon ayon sa kategorya')}>
+      {rows.map((row, i) => {
+        const from = cumulative / total * Math.PI * 2 - Math.PI / 2;
+        cumulative += row.amount;
+        const to = cumulative / total * Math.PI * 2 - Math.PI / 2;
+        const label = t(row.category, expenseLabels[row.category] ?? row.category) + ' · ' + peso(row.amount) + ' · ' + (row.amount / total * 100).toFixed(1) + '%';
+        return rows.length === 1 ? <circle key={row.category} cx="110" cy="110" r="100" fill={`var(--chart-${i + 1})`}><title>{label}</title></circle>
+          : <path key={row.category} d={`M110,110 L${110 + 100 * Math.cos(from)},${110 + 100 * Math.sin(from)} A100,100 0 ${row.amount / total > .5 ? 1 : 0},1 ${110 + 100 * Math.cos(to)},${110 + 100 * Math.sin(to)} Z`}
+            fill={`var(--chart-${i % 8 + 1})`} stroke="var(--surface)" strokeWidth="2"><title>{label}</title></path>;
+      })}
+    </svg><ul className="expense-legend">{rows.map((row, i) => <li key={row.category}><i style={{ background: `var(--chart-${i % 8 + 1})` }} />
+      <span>{t(row.category, expenseLabels[row.category] ?? row.category)}</span><strong>{peso(row.amount)}</strong>
+      <span>{(row.amount / total * 100).toFixed(1)}%</span></li>)}</ul></div> : <Empty>{t('No recorded expenses in this period.', 'Walang naitalang gastos sa saklaw na ito.')}</Empty>}
+    <p className="chart-caption">{t('Total Operating Expenses', 'Kabuuang Gastos sa Operasyon')} · {peso(total)}</p>
   </div>;
 }
 
@@ -77,11 +91,11 @@ export function StockPriority({ stocks, start, end }: { stocks: StockEvidence[];
   const displayed = (priorities.length ? priorities : stocks).slice(0, 3);
   return <div className="record-chart">
     <h3>{t('Check before ordering', 'Suriin bago umorder')}</h3>
-    <p className="chart-caption">{t('Stock cover uses completed days', 'Batay sa mga buong araw ang tantiya')} · {shortDate(start, language)}–{shortDate(end, language)}</p>
+    <p className="chart-caption">{t('Past 7 days', 'Nakaraang 7 araw')} · {shortDate(start, language)}–{shortDate(end, language)}</p>
     {displayed.length ? <ul className="priority-list">{displayed.map(row => <li key={row.id}>
       <div className="priority-heading"><a href={'#stock/history/' + encodeURIComponent(row.id)}>{row.name}</a>
         <strong>{row.stock} <span>{row.unit}</span></strong></div>
-      <div className="priority-context"><span>{row.sold} {t('sold', 'nabenta')} · {t('7 complete days', '7 buong araw')}</span>
+      <div className="priority-context"><span>{row.sold} {t('sold', 'nabenta')} · {t('Past 7 days', 'Nakaraang 7 araw')}</span>
         <span className={row.stock <= row.threshold ? 'priority-low' : ''}>{runout(row.days, language)}</span></div>
       {row.days !== null && <div className="stock-cover-track" aria-hidden="true">
         <span style={{ width: `${Math.min(7, Math.max(0, row.days)) / 7 * 100}%` }} />

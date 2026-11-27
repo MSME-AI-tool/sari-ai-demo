@@ -53,11 +53,11 @@ def app_guide(question, agent):
     if re.search(r"\b(?:home|dashboard|summary|overview)\b", question):
         return "Open Home to see the sales trend, operating expenses, and low-stock items. Select View stock history on an item to inspect its movements.", "home"
     if re.search(r"\b(?:reporting period|date range|reporting dates)\b", question):
-        return "In Ask Sari, pick Today, Last 7 days, or Last 14 days in the Reporting period menu, then ask again. Stock cover always uses the last seven complete days.", None
+        return "Choose Today, 3 Days, 1 Week, 1 Month, 6 Months, or Set Custom Period in the Reporting Period menu, then ask again. Stock cover uses the Past 7 days, with the exact dates shown.", None
     guides = {
         "recording": ("Type a sale, stock entry, or expense with its quantity or amount. I can prepare a draft for you to review. To enter it manually, use Sales, Stock, or Expenses.", "stock"),
         "insights": ("Ask about sales, cash received, outstanding credit, expenses, or gross profit. Choose a reporting period in Ask Sari and open View store figures to check the totals.", "sales"),
-        "forecast": ("Ask what may run out soon. In Stock, compare quantities on hand with Stock cover. Estimates use seven complete days of sales and need sales on at least three days.", "stock"),
+        "forecast": ("Open Forecasting to compare quantities on hand with stock cover. Estimates use the Past 7 days and need sales on at least three days. Open Restock Planner to compare order and price scenarios.", "stock/planner"),
         "health": ("Ask me to check your records for low stock, missing unit costs, or large count changes. Open Stock history to review the movements behind a flag.", "stock/history"),
     }
     return guides[agent]
@@ -85,7 +85,7 @@ def fact(label, value):
 
 
 def reporting_window(snapshot, length):
-    today = date.fromisoformat(snapshot["today"])
+    today = date.fromisoformat(snapshot.get("_report_end", snapshot["today"]))
     start = today - timedelta(days=length - 1)
     return today.isoformat(), start.isoformat(), (start - timedelta(days=length)).isoformat()
 
@@ -273,11 +273,11 @@ def forecast(snapshot, question):
             status = "Less than 1 day of stock"
         else:
             status = f"About {math.floor(cover + 0.5)} day(s) of stock"
-        description = f"{stock} on hand · {sales[key]} units sold over the last 7 complete days · {status}"
+        description = f"{stock} on hand · {sales[key]} units sold over the past 7 days · {status}"
         if stock <= product["threshold"]:
             description += f" · At or below low-stock threshold ({product['threshold']})"
         if daily:
-            description += f" · {daily:.1f} units/day over the last 7 complete days"
+            description += f" · {daily:.1f} units/day over the past 7 days"
         estimates.append((product, cover, description))
     estimates.sort(key=lambda row: (
         not (row[0]["stock"] <= row[0]["threshold"] or row[1] < 3), row[1], row[0]["name"],
@@ -307,8 +307,9 @@ def response_view(snapshot, length, agent, question):
     total = sum(s["total"] for s in sales)
     products = []
     stocks = []
-    forecast_start = (date.fromisoformat(day) - timedelta(days=7)).isoformat()
-    recent_ids = {s["id"]: s["day"] for s in snapshot["sales"] if forecast_start <= s["day"] < day}
+    forecast_day = snapshot['today']
+    forecast_start = (date.fromisoformat(forecast_day) - timedelta(days=7)).isoformat()
+    recent_ids = {s["id"]: s["day"] for s in snapshot["sales"] if forecast_start <= s["day"] < forecast_day}
     for product in snapshot["products"]:
         matching = [i for i in items if i["product_id"] == product["id"]]
         quantity = sum(i["quantity"] for i in matching)
@@ -345,7 +346,7 @@ def response_view(snapshot, length, agent, question):
         stocks = [row for row in stocks if row["id"] in requested]
     return {
         "kind": kind, "start": start, "end": day, "forecastStart": forecast_start,
-        "forecastEnd": (date.fromisoformat(day) - timedelta(days=1)).isoformat(),
+        "forecastEnd": (date.fromisoformat(forecast_day) - timedelta(days=1)).isoformat(),
         "sales": total, "cashSales": cash_sales, "creditSales": total - cash_sales,
         "repayments": repayments, "expenses": sum(e["amount"] for e in expenses),
         "gross": total - sum(i["cost"] * i["quantity"] for i in items),
@@ -408,7 +409,7 @@ You can only prepare a draft. Saving requires the user's review and separate con
 
 PROMPTS = {
     "insights": "Explain sales, cash received, operating expenses, gross profit and top products. Cash includes repayments. Gross profit is before operating expenses.",
-    "forecast": "Explain which products may run out soon. Stock cover uses the last seven complete days and requires sales on at least three days. Treat it as an estimate, do not invent demand, dates or orders.",
+    "forecast": "Explain which products may run out soon. Label the stock-cover history as Past 7 days and give the exact dates from the records. It requires sales on at least three days. Treat it as an estimate, do not invent demand, dates or orders.",
     "health": "Explain which store records to review. A zero unit cost can limit profit estimates. A large physical-count correction is a check to investigate and does not establish a cause.",
 }
 ANALYTICS_PROMPT = """You are Sari, the SARI-AI store assistant. Answer in the user's language in up to four short sentences.
@@ -736,7 +737,7 @@ def filipino_facts(facts):
                                  ("Insufficient sales history for a runout estimate", "Kulang ang tala ng benta para sa tantiya"),
                                  ("Less than 1 day of stock", "Tatagal nang wala pang isang araw"),
                                  ("At or below low-stock threshold", "Umabot o bumaba sa minimum na stock"),
-                                 (" units/day over the last 7 complete days", " bawat araw sa huling 7 buong araw"),
+                                 (" units/day over the past 7 days", " bawat araw sa nakaraang 7 araw"),
                                  (" units sold", " nabentang item"), (" sales", " na benta"),
                                  (" across ", " sa "), (" transactions", " transaksiyon"),
                                  (" units after physical count", " yunit matapos bilangin"),

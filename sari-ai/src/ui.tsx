@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { peso, shortDate, weekday } from './data';
+import { useLanguage } from './language';
 
 const icons = {
   home: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z',
@@ -71,12 +72,13 @@ export function Delta({ current, previous }: { current: number; previous: number
   </span>;
 }
 
-export function SalesChart({ trend }: { trend: { day: string; sales: number; expenses: number }[] }) {
-  const max = Math.max(40000, ...trend.flatMap((day) => [day.sales, day.expenses]));
+export function SalesChart({ trend, showExpenses = true }: { trend: { day: string; sales: number; expenses: number }[]; showExpenses?: boolean }) {
+  const { t, language } = useLanguage();
+  const max = Math.max(40000, ...trend.flatMap((day) => [day.sales, showExpenses ? day.expenses : 0]));
   const axisStep = Math.ceil(max / 40000) * 10000;
   const limit = axisStep * 4;
-  return <div className="chart">
-    <div className="chart-key"><span><i /> Sales</span><span><i /> Operating expenses</span></div>
+  return <div className={'chart' + (showExpenses ? '' : ' sales-only')}>
+    <div className="chart-key"><span><i /> {t('Sales', 'Benta')}</span>{showExpenses && <span><i /> {t('Operating Expenses', 'Gastos sa Operasyon')}</span>}</div>
     <div className="chart-body">
       <div className="chart-axis" aria-hidden="true">{[4, 3, 2, 1, 0].map((step) =>
         <span key={step}>₱{(axisStep * step / 100).toLocaleString('en-PH')}</span>)}</div>
@@ -84,13 +86,13 @@ export function SalesChart({ trend }: { trend: { day: string; sales: number; exp
         <div className="chart-grid" aria-hidden="true">{[0, 1, 2, 3, 4].map((step) => <i key={step} />)}</div>
         <div className="bar-groups" style={{ '--days': trend.length } as CSSProperties}>
           {trend.map((day) => <div className="bar-group" key={day.day} tabIndex={0}
-            aria-label={`${shortDate(day.day)}: sales ${peso(day.sales)}, operating expenses ${peso(day.expenses)}`}>
+            aria-label={`${shortDate(day.day, language)}: ${t('Sales', 'Benta')} ${peso(day.sales)}${showExpenses ? ', ' + t('Operating Expenses', 'Gastos sa Operasyon') + ' ' + peso(day.expenses) : ''}`}>
             <div className="bars">
               <i style={{ height: `${day.sales / limit * 100}%` }} />
-              <i style={{ height: `${day.expenses / limit * 100}%` }} />
+              {showExpenses && <i style={{ height: `${day.expenses / limit * 100}%` }} />}
             </div>
-            <span className="bar-label">{trend.length <= 7 ? weekday(day.day) : shortDate(day.day)}</span>
-            <span className="chart-tip">{shortDate(day.day)}<br />Sales {peso(day.sales)}<br />Expenses {peso(day.expenses)}</span>
+            <span className="bar-label">{trend.length <= 7 ? weekday(day.day, language) : shortDate(day.day, language)}</span>
+            <span className="chart-tip">{shortDate(day.day, language)}<br />{t('Sales', 'Benta')} {peso(day.sales)}{showExpenses && <><br />{t('Expenses', 'Gastos')} {peso(day.expenses)}</>}</span>
           </div>)}
         </div>
       </div>

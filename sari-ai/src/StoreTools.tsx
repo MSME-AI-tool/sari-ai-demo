@@ -3,6 +3,10 @@ import { add, analyze, forecast, peso, shiftDay } from './data';
 import type { Entry, Product, Store } from './data';
 import { expenseLabels, useLanguage } from './language';
 import { Empty, Panel } from './ui';
+import { ExpenseBreakdown } from './RecordViews';
+import { ReportControls, useReportPeriod } from './ReportControls';
+import { historyRangeLink } from './reporting';
+import type { DateRange } from './reporting';
 
 const demoPhotos: Record<string, string> = {
   'product-1': 'coffee',
@@ -32,10 +36,11 @@ function Bars({ rows }: { rows: { label: string; value: number; display: string 
   </ul>;
 }
 
-export function StoreInsights({ store, expenses = false }: { store: Store; expenses?: boolean }) {
+export function StoreInsights({ store, expenses = false, range }: { store: Store; expenses?: boolean; range?: DateRange }) {
   const { t } = useLanguage();
-  const [period, setPeriod] = useState(7);
-  const report = analyze(store, period);
+  const control = useReportPeriod(store);
+  const selectedRange = range ?? control.range;
+  const report = analyze(store, selectedRange);
   const total = expenses ? report.expenses : report.sales;
   const prior = expenses ? report.previousExpenses : report.previousSales;
   const data = expenses ? report.expenseCategories.map(row => ({
@@ -43,9 +48,8 @@ export function StoreInsights({ store, expenses = false }: { store: Store; expen
   })) :
     report.byProduct.slice(0, 5).map(row => ({ label: row.product.name, value: row.quantity, display: String(row.quantity) }));
   const name = t(expenses ? 'Where the money went' : 'What sold', expenses ? 'Saan napunta ang pera' : 'Mga nabentang item');
-  return <Panel title={name} action={<select aria-label={t('Insights period', 'Saklaw ng ulat')} value={period}
-    onChange={event => setPeriod(Number(event.target.value))}><option value={1}>{t('Today', 'Ngayon')}</option>
-    <option value={7}>{t('Last 7 days', 'Huling 7 araw')}</option><option value={14}>{t('Last 14 days', 'Huling 14 araw')}</option></select>}>
+  return <Panel title={expenses ? t('Expense Distribution', 'Bahagi ng mga Gastos') : name}>
+    {!range && <ReportControls control={control} />}
     <p>{expenses ? t(`Operating expenses were ${peso(total)}, compared with ${peso(prior)} in the prior period.`,
       `${peso(total)} ang gastos sa operasyon, kumpara sa ${peso(prior)} noong nakaraang panahon.`) :
       t(`Sales were ${peso(total)}. Cash received was ${peso(report.cash)}, including repayments.`,
@@ -53,16 +57,16 @@ export function StoreInsights({ store, expenses = false }: { store: Store; expen
     {!expenses && <p className="panel-footnote">{t(`Estimated gross profit before expenses was ${peso(report.gross)}.`,
       `${peso(report.gross)} ang tinatayang tubo bago ibawas ang gastos.`)} {report.missingCosts.length > 0 &&
         t('Check missing unit costs before relying on profit figures.', 'Suriin muna ang kulang na puhunan bago gamitin ang tantiya sa tubo.')}</p>}
-    {data.length ? <Bars rows={data} /> : <Empty>{t('No entries in this period.', 'Walang tala sa panahong ito.')}</Empty>}
-    <a className="evidence-link" href={expenses ? '#expenses' : `#sales/period/${period}`}>
+    {expenses ? <ExpenseBreakdown categories={report.expenseCategories} /> : data.length ? <Bars rows={data} /> : <Empty>{t('No entries in this period.', 'Walang tala sa panahong ito.')}</Empty>}
+    <a className="evidence-link" href={expenses ? '#expenses' : historyRangeLink(selectedRange)}>
       {t('View the recorded entries', 'Tingnan ang mga tala')} →</a>
   </Panel>;
 }
 
-export function StockInsights({ store }: { store: Store }) {
+export function StockInsights({ store, range }: { store: Store; range?: DateRange }) {
   const { t } = useLanguage();
-  const windowStart = shiftDay(store.today, -6);
-  const movements = store.movements.filter(row => row.day >= windowStart && row.day <= store.today);
+  const windowStart = range?.start ?? shiftDay(store.today, -6);
+  const movements = store.movements.filter(row => row.day >= windowStart && row.day <= (range?.end ?? store.today));
   const categories = [
     ['restock', 'Stock-in', 'Stock-in'], ['sale', 'Sales', 'Benta'], ['count', 'Counts', 'Mga bilang'],
     ['waste', 'Wastage', 'Sira o tapon'], ['correction', 'Corrections', 'Mga pagwawasto'],
@@ -72,7 +76,7 @@ export function StockInsights({ store }: { store: Store }) {
     return { label: t(en, fil), value: count, display: String(count) };
   });
   const low = store.products.filter(product => product.stock <= product.threshold);
-  return <Panel title={t('Stock activity', 'Mga galaw ng stock')} detail={t('Entries in the last 7 days', 'Mga tala sa huling 7 araw')}>
+  return <Panel title={t('Stock Activity', 'Mga Galaw ng Stock')} detail={range ? range.start + '–' + range.end : t('Past 7 days', 'Nakaraang 7 araw')}>
     <p>{t(`${low.length} of ${store.products.length} products are at or below their stock threshold.`,
       `${low.length} sa ${store.products.length} item ang umabot o bumaba sa minimum na stock.`)}</p>
     {movements.length > 0 ? <Bars rows={rows} /> : <Empty>{t('No stock activity in this period.', 'Walang galaw ng stock sa panahong ito.')}</Empty>}
@@ -108,7 +112,7 @@ export function StockPlanner({ store, productId }: { store: Store; productId?: s
   const reorder = rate !== null && !isNew && packSize >= 1 && leadDays >= 0 && horizon > 0
     ? Math.ceil(Math.max(0, Math.ceil(rate * (leadDays + horizon)) - available) / Math.ceil(packSize)) * Math.ceil(packSize) : null;
   const runoutIn = estimate?.days ?? null;
-  return <Panel title={t('Restock planner', 'Plano ng pagdagdag ng stock')}>
+  return <Panel title={t('Restock Planner', 'Plano ng Pagdagdag ng Stock')}>
     <p>{t('Compare demand, sales, and cash from a product before you order.',
       'Ihambing ang tantiya sa demand, benta, at perang matatanggap bago umorder.')}</p>
     <div className="planner-fields">
@@ -148,8 +152,8 @@ export function StockPlanner({ store, productId }: { store: Store; productId?: s
         `Umorder bago o sa ${shiftDay(store.today, Math.floor(runoutIn - leadDays))} kung magpapatuloy ang ganitong benta.`)}</p>}
     <p className="panel-footnote">{isNew ? t('This scenario assumes you have enough stock to meet the demand you entered.',
       'Ipinapalagay sa sitwasyong ito na sapat ang stock para sa inilagay na demand.') :
-      t('Uses the last seven complete days and needs sales on three days. Sales are limited by stock on hand. Price changes hold demand constant.',
-        'Batay sa huling pitong buong araw at kailangan ng benta sa tatlong araw. Limitado ang benta sa stock. Pareho ang demand kahit baguhin ang presyo.')}
+      t('Uses the Past 7 days and needs sales on three days. Sales are limited by stock on hand. Price changes hold demand constant.',
+        'Batay sa nakaraang 7 araw at kailangan ng benta sa tatlong araw. Limitado ang benta sa stock. Pareho ang demand kahit baguhin ang presyo.')}
       {' '}{t('Net cash subtracts only the expenses you enter. Repayments from earlier sales are excluded.',
         'Ibinabawas lang ang mga gastos na inilagay mo. Hindi kasama ang bayad sa mga dating utang.')}</p>
   </Panel>;

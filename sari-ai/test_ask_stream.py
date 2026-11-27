@@ -46,9 +46,9 @@ class AskStreamTests(unittest.TestCase):
         self.assertIn(b'"facts"', data)
 
     def test_invalid_request_is_rejected_before_stream_headers(self):
-        response, chunks = self.request({"question": "Show sales", "period": 8})
+        response, chunks = self.request({"question": "Show sales", "period": 0})
         self.assertEqual(response["status"], "422 Unprocessable Entity")
-        self.assertIn(b'Choose today', b''.join(chunks))
+        self.assertIn(b'valid value for period', b''.join(chunks))
 
     def test_disconnected_stream_stops_production(self):
         stopped = Event()

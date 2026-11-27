@@ -1,3 +1,5 @@
+import type { DateRange } from './reporting';
+
 export type Product = {
   id: string; name: string; category: string; unit: string; price: number;
   cost: number; stock: number; threshold: number;
@@ -16,6 +18,7 @@ export type EntryKind = 'sale' | 'product' | 'stock' | 'expense' | 'payment' | '
 export type Line = { product_id: string; quantity: string; note: string; supplier_cost?: string };
 export type Entry = {
   kind: EntryKind;
+  inputMode?: 'manual' | 'sari';
   original?: string;
   draftSource?: AskReply['source'];
   day?: string;
@@ -89,14 +92,16 @@ export function ledger(store: Store) {
   return Array.from(customers, ([name, balance]) => ({ name, balance })).sort((a, b) => b.balance - a.balance);
 }
 
-export function analyze(store: Store, length: number) {
-  const start = shiftDay(store.today, 1 - length);
+export function analyze(store: Store, period: number | DateRange) {
+  const end = typeof period === 'number' ? store.today : period.end;
+  const length = typeof period === 'number' ? period : Math.round((Date.parse(period.end) - Date.parse(period.start)) / 86_400_000) + 1;
+  const start = typeof period === 'number' ? shiftDay(end, 1 - length) : period.start;
   const previousStart = shiftDay(start, -length);
-  const sales = store.sales.filter((sale) => sale.day >= start && sale.day <= store.today);
+  const sales = store.sales.filter((sale) => sale.day >= start && sale.day <= end);
   const salesIds = new Set(sales.map((sale) => sale.id));
   const items = store.items.filter((item) => salesIds.has(item.sale_id));
-  const expenses = store.expenses.filter((expense) => expense.day >= start && expense.day <= store.today);
-  const payments = store.payments.filter((payment) => payment.day >= start && payment.day <= store.today);
+  const expenses = store.expenses.filter((expense) => expense.day >= start && expense.day <= end);
+  const payments = store.payments.filter((payment) => payment.day >= start && payment.day <= end);
   const currentSales = add(sales, (sale) => sale.total);
   const priorSales = store.sales.filter((sale) => sale.day >= previousStart && sale.day < start);
   const previousSales = add(priorSales, (sale) => sale.total);
