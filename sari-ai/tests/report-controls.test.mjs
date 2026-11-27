@@ -101,11 +101,36 @@ test('Sari shows conversational replies directly and suggestion clicks send the 
   await fill(input, 'Hi');
   await act(async () => host.querySelector('.ask-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
   assert.match(host.querySelector('.answer-text').textContent, /Hi! I'm Sari/);
+  assert.match(host.querySelector('.answer-source').textContent, /Built-in reply/);
   assert.equal(host.querySelectorAll('.answer-visual').length, 0);
   const suggestion = host.querySelector('.answer-suggestions button');
   assert.ok(suggestion);
   await click(suggestion);
   assert.deepEqual(questions, ['Hi', 'What is my stock right now?']);
+});
+
+test('live conversation sends recent turns for follow-ups and labels the actual source', async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push(JSON.parse(options.body));
+    return new Response('event: done\ndata: ' + JSON.stringify({ agent: 'insights', source: 'external', response_type: 'conversation',
+      text: requests.length === 1 ? 'We can talk through that together.' : 'Yes, I meant we can discuss your concern.' }) + '\n\n');
+  };
+  await mount(Ask, { store, open() {} });
+  const submit = async question => {
+    await fill(host.querySelector('.ask-form input'), question);
+    await act(async () => host.querySelector('.ask-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  };
+  await submit('Hi');
+  await submit('What do you mean?');
+  assert.deepEqual(requests[0].history, []);
+  assert.deepEqual(requests[1].history, [
+    { role: 'user', content: 'Hi' }, { role: 'assistant', content: 'We can talk through that together.' },
+  ]);
+  assert.equal(requests[1].context, '', 'General chat must not become a recording correction');
+  assert.match(host.querySelector('.answer-source').textContent, /Live AI/);
+  assert.equal(host.querySelectorAll('.answer-visual').length, 0);
+  assert.equal(host.querySelectorAll('.answer-suggestions').length, 0);
 });
 
 test('record-based explanations remain visible above their charts', async () => {

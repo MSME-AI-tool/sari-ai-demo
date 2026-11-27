@@ -116,7 +116,16 @@ def prepare_ask(entry):
     context = text(entry, "context", 4000, required=False)
     if mode != "auto" and mode not in agents.AGENTS:
         raise store.StoreError("Choose a valid agent.")
-    snapshot = store.snapshot()
+    history = entry.get("history", [])
+    if not isinstance(history, list) or len(history) > 12:
+        raise store.StoreError("Send at most 12 recent conversation messages.")
+    recent = []
+    for turn in history:
+        if (not isinstance(turn, dict) or turn.get("role") not in ("user", "assistant")
+                or not isinstance(turn.get("content"), str) or not 1 <= len(turn["content"]) <= 2000):
+            raise store.StoreError("Send valid user or assistant conversation messages.")
+        recent.append({"role": turn["role"], "content": turn["content"]})
+    snapshot = {**store.snapshot(), "_conversation_history": recent}
     if entry.get('start_date') is not None or entry.get('end_date') is not None:
         try:
             start = date.fromisoformat(text(entry, 'start_date', 10))
@@ -138,7 +147,8 @@ def ask_store(entry, on_delta=None, prepared=None):
     if entry.get("capture") in ("receipt", "record", "product") or record_type != "auto":
         return agents.capture(snapshot, question, entry.get("capture", "record"), language, record_type)
     answer = agents.ask(snapshot, question, length, mode, language, context=context, on_delta=on_delta)
-    if answer["agent"] in ("insights", "forecast") and answer["source"] in ("records", "external") and not answer.get("draft"):
+    if (answer["agent"] in ("insights", "forecast") and answer["source"] in ("records", "external")
+            and answer.get("response_type") != "conversation" and not answer.get("draft")):
         answer["view"] = agents.response_view(snapshot, length, answer["agent"], question)
     return answer
 

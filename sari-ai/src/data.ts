@@ -41,6 +41,8 @@ export type AskReply = {
   agent: Agent;
   text: string;
   source: 'external' | 'records' | 'guide' | 'conversation';
+  response_type?: 'conversation';
+  live_ai?: { status: 'connected' | 'unconfigured' | 'unavailable' | 'busy'; checked_at: string };
   intent?: string;
   suggestions?: string[];
   reason?: 'unconfigured' | 'unavailable' | 'invalid' | 'busy';

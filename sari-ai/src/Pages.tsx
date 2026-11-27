@@ -394,7 +394,11 @@ export function Ask({ open, store }: PageProps) {
     request.current = controller;
     setPending(question); setStreamed(''); setError(''); setMessage('');
     try {
-      const answer = await askStream({ question, period: rangeDays(control.range), start_date: control.range.start, end_date: control.range.end, language, context },
+      const history = thread.slice(-6).flatMap(turn => [
+        { role: 'user', content: turn.question.slice(0, 2000) },
+        { role: 'assistant', content: turn.answer.text.slice(0, 2000) },
+      ]);
+      const answer = await askStream({ question, period: rangeDays(control.range), start_date: control.range.start, end_date: control.range.end, language, context, history },
         chunk => setStreamed(value => value + chunk), controller.signal);
       const recordContext = answer.agent === 'recording' ? [context, question, answer.text].filter(Boolean).join('\n').slice(0, 3900) : '';
       setThread(items => [...items, { question, answer, recordContext }]);
@@ -408,8 +412,8 @@ export function Ask({ open, store }: PageProps) {
       <p>{t('Ask about store figures or get help with a task.', 'Magtanong tungkol sa mga tala o humingi ng tulong sa gawain.')}</p></div></header>
     <Panel className="ask-panel" title={t('Your conversation', 'Pag-uusap')} action={<img className="sari-icon" src="/sari.svg" alt="" />}>
       {store.ai_configured === false && <p className="notice" role="status">{t(
-        'Live AI is disconnected. Sari can still check store records, guide you through the app, and prepare common drafts.',
-        'Hindi nakakonekta ang Live AI. Maaari pa ring sumuri si Sari ng mga tala, gumabay sa app, at gumawa ng mga karaniwang draft.',
+        'No live AI provider is configured. Sari can still check store records, guide you through the app, and prepare common drafts.',
+        'Wala pang naka-configure na live AI. Maaari pa ring sumuri si Sari ng mga tala, gumabay sa app, at gumawa ng mga karaniwang draft.',
       )}</p>}
       <div className="ask-controls"><ReportControls control={control} disabled={!!pending} /></div>
       <div className="suggestions">{examples.map(question => <button type="button" key={question}
@@ -421,18 +425,21 @@ export function Ask({ open, store }: PageProps) {
         </div>}
         {thread.map(({ question, answer }, index) => <div key={index}><div className="question">{question}</div>
           <div className="answer"><img className="sari-icon" src="/sari.svg" alt="" /><div>
-            <p className="answer-source"><strong>Sari</strong>{answer.source !== 'conversation' && <> · {answer.source === 'external' ? t('Live AI', 'Live AI') :
-              answer.source === 'guide' ? t('App guide', 'Gabay sa app') : t('Store records', 'Mga tala ng tindahan')}</>}</p>
+            <p className="answer-source"><strong>Sari</strong> · {answer.source === 'external' ? t('Live AI', 'Live AI') :
+              answer.source === 'conversation' ? t('Built-in reply', 'Built-in na sagot') :
+              answer.source === 'guide' ? t('App guide', 'Gabay sa app') : t('Store records', 'Mga tala ng tindahan')}</p>
             <p className="answer-text">{answer.text}</p>
             {answer.view && <AnswerVisual view={answer.view} />}
             {!!answer.suggestions?.length && <div className="answer-suggestions" role="group" aria-label={t('Suggested next questions', 'Mga susunod na tanong')}>
               {answer.suggestions.map(suggestion => <button key={suggestion} type="button" className="button secondary" disabled={!!pending}
                 onClick={() => void reply(suggestion, true)}>{suggestion}</button>)}
             </div>}
-            {store.ai_configured !== false && answer.reason && <p className="answer-status">{t(
-              'Live AI didn’t respond. This reply used the built-in assistant.',
-              'Hindi sumagot ang Live AI. Galing ang sagot na ito sa built-in na assistant.',
-            )}</p>}
+            {store.ai_configured !== false && answer.reason && <p className="answer-status">{answer.reason === 'busy' ? t(
+              'Live AI is busy. This reply used the built-in assistant.', 'Abala ang Live AI. Galing ang sagot na ito sa built-in na assistant.',
+            ) : answer.reason === 'unconfigured' ? t(
+              'Live AI is not configured. This reply used the built-in assistant.', 'Wala pang naka-configure na Live AI. Built-in na assistant ang sumagot.',
+            ) : t('Live AI didn’t respond. This reply used the built-in assistant.',
+              'Hindi sumagot ang Live AI. Galing ang sagot na ito sa built-in na assistant.')}</p>}
             {answer.draft && <button className="text-link" onClick={() => open({ ...answer.draft!, original: question, draftSource: answer.source })}>
               {t('Review draft', 'Suriin ang draft')} <Icon name="arrow" size={17} /></button>}
             {answer.destination && <a className="evidence-link" href={'#' + answer.destination}>{destinations[answer.destination]} →</a>}
@@ -459,8 +466,8 @@ export function Ask({ open, store }: PageProps) {
           placeholder={t('Ask about your store', 'Magtanong tungkol sa tindahan')} maxLength={500} required />
         <button className="button primary" disabled={!!pending || !message.trim()}>{t('Ask', 'Magtanong')} <Icon name="arrow" size={18} /></button>
       </form>
-      <p className="panel-footnote">{t('Store questions may use the connected AI provider. Greetings and common help replies work with the built-in assistant.',
-        'Maaaring gamitin ang nakakonektang AI sa mga tanong tungkol sa tindahan. Gumagana ang pagbati at karaniwang tulong sa built-in na assistant.')}</p>
+      <p className="panel-footnote">{t('Sari uses live AI for conversation when available. Each reply shows its source. Review and confirm drafts before saving.',
+        'Gumagamit si Sari ng live AI sa usapan kapag available. May label ang pinagmulan ng bawat sagot. Suriin at kumpirmahin ang draft bago i-save.')}</p>
     </Panel>
   </div>;
 }
