@@ -15,6 +15,7 @@ const server = await createServer({ server: { middlewareMode: true }, appType: '
 const { ReportControls, useReportPeriod } = await server.ssrLoadModule('/src/ReportControls.tsx');
 const { TrendChart } = await server.ssrLoadModule('/src/TrendCharts.tsx');
 const { default: EntryDialog } = await server.ssrLoadModule('/src/EntryDialog.tsx');
+const { Ask } = await server.ssrLoadModule('/src/Pages.tsx');
 const store = { today: '2026-11-27', products: [{ id: 'coffee', name: 'Coffee', unit: 'sachet', price: 1000, cost: 500, stock: 20, threshold: 2 }],
   sales: [], items: [], movements: [], payments: [], expenses: [] };
 let root, host;
@@ -85,4 +86,38 @@ test('Manual and With Sari preserve manual inputs and review drafts in the same 
   assert.ok(host.querySelector('.assisted-review'));
   assert.equal(host.querySelector('.assisted-review input[type="number"]').value, '2');
   assert.equal(writes, 0, 'A draft must not save before confirmation');
+});
+
+test('Sari shows conversational replies directly and suggestion clicks send the actual question', async () => {
+  const questions = [];
+  globalThis.fetch = async (url, options) => {
+    const request = JSON.parse(options.body); questions.push(request.question);
+    return new Response('event: done\ndata: ' + JSON.stringify({ agent: 'insights', source: 'conversation', intent: 'greeting',
+      text: "Hi! I'm Sari. What would you like to do?", suggestions: ['What is my stock right now?'] }) + '\n\n',
+      { headers: { 'Content-Type': 'text/event-stream' } });
+  };
+  await mount(Ask, { store, open() {} });
+  const input = host.querySelector('.ask-form input');
+  await fill(input, 'Hi');
+  await act(async () => host.querySelector('.ask-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  assert.match(host.querySelector('.answer-text').textContent, /Hi! I'm Sari/);
+  assert.equal(host.querySelectorAll('.answer-visual').length, 0);
+  const suggestion = host.querySelector('.answer-suggestions button');
+  assert.ok(suggestion);
+  await click(suggestion);
+  assert.deepEqual(questions, ['Hi', 'What is my stock right now?']);
+});
+
+test('record-based explanations remain visible above their charts', async () => {
+  globalThis.fetch = async () => new Response('event: done\ndata: ' + JSON.stringify({ agent: 'insights', source: 'records',
+    text: 'Your estimated gross profit is before operating expenses.',
+    view: { kind: 'profit', start: '2026-11-21', end: '2026-11-27', gross: 1000, expenses: 0, missingCosts: false } }) + '\n\n');
+  await mount(Ask, { store, open() {} });
+  await fill(host.querySelector('.ask-form input'), 'Explain my profit');
+  await act(async () => host.querySelector('.ask-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  const text = host.querySelector('.answer-text');
+  assert.ok(text);
+  assert.equal(text.closest('details'), null);
+  assert.ok(host.querySelector('.answer-visual'));
+  assert.ok(host.querySelector('.answer').innerHTML.indexOf('answer-text') < host.querySelector('.answer').innerHTML.indexOf('answer-visual'));
 });

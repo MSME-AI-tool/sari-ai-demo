@@ -504,6 +504,8 @@ textarea { resize: vertical; min-height: 96px; line-height: 1.6; }
 .answer-source, .answer-status { color: var(--muted); font-size: .8125rem; line-height: 1.6; margin-bottom: 10px; }
 .answer-source strong { color: var(--ink); font-size: .9375rem; }
 .answer-text { white-space: pre-wrap; line-height: 1.7; max-width: 72ch; }
+.answer-suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.answer-suggestions .button { min-height: 44px; padding: 10px 12px; font-size: .8125rem; text-align: left; }
 .answer-visual { padding: 20px; background: var(--mint); border-radius: 14px; margin-bottom: 14px; }
 .answer-heading h3 { font-size: 1.125rem; font-weight: 600; letter-spacing: -.02em; }
 .answer-heading p { margin-top: 6px; color: var(--muted); font-size: .8125rem; }

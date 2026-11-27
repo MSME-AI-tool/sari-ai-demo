@@ -421,13 +421,14 @@ export function Ask({ open, store }: PageProps) {
         </div>}
         {thread.map(({ question, answer }, index) => <div key={index}><div className="question">{question}</div>
           <div className="answer"><img className="sari-icon" src="/sari.svg" alt="" /><div>
-            <p className="answer-source"><strong>Sari</strong> · {answer.source === 'external' ? t('Live AI', 'Live AI') :
-              answer.source === 'guide' ? t('App guide', 'Gabay sa app') : t('Store records', 'Mga tala ng tindahan')}</p>
-            {answer.view ? <>
-              <AnswerVisual view={answer.view} />
-              <details className="answer-explanation" open={answer.source === 'external'}><summary>{t('Read Sari’s explanation', 'Basahin ang paliwanag ni Sari')}</summary>
-                <p className="answer-text">{answer.text}</p></details>
-            </> : <p className="answer-text">{answer.text}</p>}
+            <p className="answer-source"><strong>Sari</strong>{answer.source !== 'conversation' && <> · {answer.source === 'external' ? t('Live AI', 'Live AI') :
+              answer.source === 'guide' ? t('App guide', 'Gabay sa app') : t('Store records', 'Mga tala ng tindahan')}</>}</p>
+            <p className="answer-text">{answer.text}</p>
+            {answer.view && <AnswerVisual view={answer.view} />}
+            {!!answer.suggestions?.length && <div className="answer-suggestions" role="group" aria-label={t('Suggested next questions', 'Mga susunod na tanong')}>
+              {answer.suggestions.map(suggestion => <button key={suggestion} type="button" className="button secondary" disabled={!!pending}
+                onClick={() => void reply(suggestion, true)}>{suggestion}</button>)}
+            </div>}
             {store.ai_configured !== false && answer.reason && <p className="answer-status">{t(
               'Live AI didn’t respond. This reply used the built-in assistant.',
               'Hindi sumagot ang Live AI. Galing ang sagot na ito sa built-in na assistant.',
@@ -458,8 +459,8 @@ export function Ask({ open, store }: PageProps) {
           placeholder={t('Ask about your store', 'Magtanong tungkol sa tindahan')} maxLength={500} required />
         <button className="button primary" disabled={!!pending || !message.trim()}>{t('Ask', 'Magtanong')} <Icon name="arrow" size={18} /></button>
       </form>
-      <p className="panel-footnote">{t('Questions and relevant store figures go to the AI provider when connected.',
-        'Ipinapadala ang tanong at kaugnay na bilang sa AI provider kapag nakakonekta.')}</p>
+      <p className="panel-footnote">{t('Store questions may use the connected AI provider. Greetings and common help replies work with the built-in assistant.',
+        'Maaaring gamitin ang nakakonektang AI sa mga tanong tungkol sa tindahan. Gumagana ang pagbati at karaniwang tulong sa built-in na assistant.')}</p>
     </Panel>
   </div>;
 }

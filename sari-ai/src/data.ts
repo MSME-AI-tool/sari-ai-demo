@@ -40,7 +40,9 @@ export type Agent = 'recording' | 'insights' | 'forecast' | 'health';
 export type AskReply = {
   agent: Agent;
   text: string;
-  source: 'external' | 'records' | 'guide';
+  source: 'external' | 'records' | 'guide' | 'conversation';
+  intent?: string;
+  suggestions?: string[];
   reason?: 'unconfigured' | 'unavailable' | 'invalid' | 'busy';
   draft?: Entry;
   clarification?: boolean;
